@@ -1,8 +1,9 @@
 "use client"
 
 import type React from "react"
-import { usePathname } from "next/navigation"
+import { usePathname, useRouter } from "next/navigation"
 import Link from "next/link"
+import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
 
 interface UserProfile {
@@ -15,12 +16,19 @@ interface UserProfile {
 
 interface DashboardLayoutProps {
   userProfile: UserProfile | null
-  onSignOut: () => void
+
   children: React.ReactNode
 }
 
-export default function DashboardLayout({ userProfile, onSignOut, children }: DashboardLayoutProps) {
+export default function DashboardLayout({ userProfile, children }: DashboardLayoutProps) {
   const pathname = usePathname()
+  const router = useRouter()
+  const supabase = createClient()
+
+  const handleSignOut = async () => {
+    await supabase.auth.signOut()
+    router.push("/")
+  }
 
   const navItems = [
     { label: "Dashboard", icon: "📊", href: "/dashboard", active: pathname === "/dashboard" },
@@ -29,6 +37,7 @@ export default function DashboardLayout({ userProfile, onSignOut, children }: Da
     { label: "Courses", icon: "📚", href: "/dashboard/courses", active: pathname === "/dashboard/courses" },
     { label: "Projects", icon: "🎯", href: "/dashboard/projects", active: pathname === "/dashboard/projects" },
     { label: "Messages", icon: "✉️", href: "/dashboard/messages", active: pathname === "/dashboard/messages" },
+    { label: "Collaboration", icon: "🤝", href: "/dashboard/collaboration", active: pathname === "/dashboard/collaboration" },
   ]
 
   return (
@@ -51,9 +60,8 @@ export default function DashboardLayout({ userProfile, onSignOut, children }: Da
             <Link
               key={item.href}
               href={item.href}
-              className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
-                item.active ? "bg-cyan-50 text-teal-600 font-medium" : "text-slate-600 hover:bg-slate-50"
-              }`}
+              className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${item.active ? "bg-cyan-50 text-teal-600 font-medium" : "text-slate-600 hover:bg-slate-50"
+                }`}
             >
               <span className="text-xl">{item.icon}</span>
               <span>{item.label}</span>
@@ -81,7 +89,7 @@ export default function DashboardLayout({ userProfile, onSignOut, children }: Da
                 <p className="text-xs text-slate-600 truncate">{userProfile?.email}</p>
               </div>
             </div>
-            <Button onClick={onSignOut} variant="outline" className="w-full text-xs bg-transparent">
+            <Button onClick={handleSignOut} variant="outline" className="w-full text-xs bg-transparent">
               Sign Out
             </Button>
           </div>

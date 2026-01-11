@@ -81,7 +81,7 @@ export default function DashboardPage() {
           const newProfile = {
             user_id: userId,
             name: user?.email?.split("@")[0] || "User",
-            email: user?.email,
+            email: user?.email || null,
             profile_completion_percentage: 0,
           }
           await supabase.from("user_profiles").insert([newProfile])
@@ -132,10 +132,7 @@ export default function DashboardPage() {
     fetchDashboardData()
   }, [supabase, router])
 
-  const handleSignOut = async () => {
-    await supabase.auth.signOut()
-    router.push("/")
-  }
+
 
   if (loading) {
     return (
@@ -149,7 +146,7 @@ export default function DashboardPage() {
   }
 
   return (
-    <DashboardLayout userProfile={userProfile} onSignOut={handleSignOut}>
+    <DashboardLayout userProfile={userProfile}>
       <div className="space-y-6">
         {/* Welcome section */}
         <div className="flex items-center justify-between">

@@ -87,10 +87,7 @@ export default function ProfilePage() {
     fetchProfileData()
   }, [supabase, router])
 
-  const handleSignOut = async () => {
-    await supabase.auth.signOut()
-    router.push("/")
-  }
+
 
   if (loading) {
     return (
@@ -104,7 +101,7 @@ export default function ProfilePage() {
   }
 
   return (
-    <DashboardLayout userProfile={userProfile} onSignOut={handleSignOut}>
+    <DashboardLayout userProfile={userProfile}>
       <div className="space-y-6">
         {/* Header */}
         <div className="flex items-center justify-between">
