@@ -3,8 +3,12 @@
 import { useState, useEffect } from "react";
 import { TeamCard } from "@/components/collaboration/team-card";
 import { generateTeamRecommendations } from "@/lib/collaboration";
-import { StudentProfile, TeamRecommendation } from "@/types/collaboration";
-import { Loader2 } from "lucide-react";
+import { StudentProfile, TeamRecommendation, ChatSession, Message } from "@/types/collaboration";
+import { Loader2, MessageSquare, Search } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ChatList } from "@/components/collaboration/chat/chat-list";
+import { ChatWindow } from "@/components/collaboration/chat/chat-window";
+import { Button } from "@/components/ui/button";
 
 // --- MOCK DATA FOR DEMONSTRATION ---
 const MOCK_CURRENT_USER: StudentProfile = {
@@ -85,6 +89,11 @@ const MOCK_CANDIDATES: StudentProfile[] = [
 export default function CollaborationPage() {
     const [recommendations, setRecommendations] = useState<TeamRecommendation[]>([]);
     const [loading, setLoading] = useState(true);
+    const [activeTab, setActiveTab] = useState("find");
+
+    // Chat State
+    const [sessions, setSessions] = useState<ChatSession[]>([]);
+    const [selectedSessionId, setSelectedSessionId] = useState<string | undefined>(undefined);
 
     useEffect(() => {
         // Simulate API delay for "Agentic" feel
@@ -98,7 +107,47 @@ export default function CollaborationPage() {
     }, []);
 
     const handleConnect = (userId: string) => {
-        alert(`Connecting with user ${userId}... (This would open a chat room)`);
+        // Check if session exists
+        let existingSession = sessions.find(s => s.participants.some(p => p.id === userId));
+
+        if (!existingSession) {
+            const targetUser = MOCK_CANDIDATES.find(c => c.id === userId);
+            if (!targetUser) return;
+
+            const newSession: ChatSession = {
+                id: `chat-${Date.now()}`,
+                participants: [MOCK_CURRENT_USER, targetUser],
+                messages: [],
+                unreadCount: 0
+            };
+
+            setSessions(prev => [newSession, ...prev]);
+            existingSession = newSession;
+        }
+
+        setSelectedSessionId(existingSession.id);
+        setActiveTab("messages");
+    };
+
+    const handleSendMessage = (sessionId: string, content: string) => {
+        const newMessage: Message = {
+            id: `msg-${Date.now()}`,
+            senderId: MOCK_CURRENT_USER.id,
+            content,
+            timestamp: new Date(),
+            isRead: false
+        };
+
+        setSessions(prev => prev.map(session => {
+            if (session.id === sessionId) {
+                return {
+                    ...session,
+                    messages: [...session.messages, newMessage],
+                    lastMessage: newMessage
+                };
+            }
+            return session;
+        }));
     };
 
     return (
@@ -106,28 +155,75 @@ export default function CollaborationPage() {
             <div className="mb-8">
                 <h1 className="text-3xl font-bold tracking-tight">Collaboration Intelligence Agent</h1>
                 <p className="text-muted-foreground mt-2">
-                    Based on your profile, I've analyzed potential teammates for your thesis/project.
+                    Find and collaborate with the perfect teammates for your academic journey.
                 </p>
             </div>
 
-            {loading ? (
-                <div className="flex flex-col items-center justify-center py-20">
-                    <Loader2 className="h-10 w-10 animate-spin text-primary mb-4" />
-                    <p className="text-muted-foreground animate-pulse">Analyzing skill compatibility...</p>
-                </div>
-            ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {recommendations.length > 0 ? (
-                        recommendations.map((rec) => (
-                            <TeamCard key={rec.id} recommendation={rec} onConnect={handleConnect} />
-                        ))
+            <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
+                <TabsList className="grid w-full grid-cols-2 lg:w-[400px]">
+                    <TabsTrigger value="find" className="flex items-center gap-2">
+                        <Search className="w-4 h-4" /> Find Teammates
+                    </TabsTrigger>
+                    <TabsTrigger value="messages" className="flex items-center gap-2">
+                        <MessageSquare className="w-4 h-4" /> Messages
+                        {sessions.length > 0 && <span className="ml-1 px-2 py-0.5 rounded-full bg-primary text-primary-foreground text-xs">{sessions.length}</span>}
+                    </TabsTrigger>
+                </TabsList>
+
+                <TabsContent value="find" className="space-y-6">
+                    {loading ? (
+                        <div className="flex flex-col items-center justify-center py-20">
+                            <Loader2 className="h-10 w-10 animate-spin text-primary mb-4" />
+                            <p className="text-muted-foreground animate-pulse">Analyzing skill compatibility...</p>
+                        </div>
                     ) : (
-                        <div className="col-span-full text-center text-muted-foreground">
-                            No recommendations found at the moment. Try updating your skills.
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                            {recommendations.length > 0 ? (
+                                recommendations.map((rec) => (
+                                    <TeamCard key={rec.id} recommendation={rec} onConnect={handleConnect} />
+                                ))
+                            ) : (
+                                <div className="col-span-full text-center text-muted-foreground">
+                                    No recommendations found at the moment. Try updating your skills.
+                                </div>
+                            )}
                         </div>
                     )}
-                </div>
-            )}
+                </TabsContent>
+
+                <TabsContent value="messages" className="min-h-[600px]">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6 h-[600px]">
+                        <div className="md:col-span-1">
+                            <ChatList
+                                sessions={sessions}
+                                currentUserId={MOCK_CURRENT_USER.id}
+                                selectedSessionId={selectedSessionId}
+                                onSelectSession={setSelectedSessionId}
+                            />
+                        </div>
+                        <div className="md:col-span-2">
+                            {selectedSessionId ? (
+                                <ChatWindow
+                                    session={sessions.find(s => s.id === selectedSessionId)!}
+                                    currentUserId={MOCK_CURRENT_USER.id}
+                                    onSendMessage={handleSendMessage}
+                                />
+                            ) : (
+                                <div className="flex flex-col items-center justify-center h-full border rounded-lg bg-slate-50 text-center p-8">
+                                    <MessageSquare className="h-12 w-12 text-slate-300 mb-4" />
+                                    <h3 className="text-lg font-medium text-slate-900">Your Messages</h3>
+                                    <p className="text-slate-500 max-w-sm mt-2">
+                                        Select a conversation from the list or find a teammate to start chatting.
+                                    </p>
+                                    <Button variant="outline" className="mt-6" onClick={() => setActiveTab("find")}>
+                                        Find Teammates
+                                    </Button>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </TabsContent>
+            </Tabs>
         </div>
     );
 }
