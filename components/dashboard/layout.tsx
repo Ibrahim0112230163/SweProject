@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation"
 import Link from "next/link"
 import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
+import Footer from "@/components/footer"
 
 interface UserProfile {
   id: string
@@ -99,6 +100,7 @@ export default function DashboardLayout({ userProfile, children }: DashboardLayo
       {/* Main content */}
       <main className="flex-1 overflow-auto">
         <div className="p-8">{children}</div>
+        <Footer />
       </main>
     </div>
   )
