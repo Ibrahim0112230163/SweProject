@@ -18,6 +18,7 @@ import { createClient } from "@/lib/supabase/client"
 
 interface UserProfile {
   id: string
+  user_id: string
   name: string | null
   email: string | null
   avatar_url: string | null
@@ -62,7 +63,13 @@ export default function ProfileCard({ profile, onProfileUpdate }: ProfileCardPro
 
     setIsUploading(true)
     try {
-      const userId = "00000000-0000-0000-0000-000000000001"
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
+
+      if (!user) throw new Error("Not authenticated")
+
+      const userId = user.id
       const fileExt = file.name.split(".").pop()
       const fileName = `${userId}-${Date.now()}.${fileExt}`
       const filePath = `avatars/${fileName}`
@@ -92,7 +99,13 @@ export default function ProfileCard({ profile, onProfileUpdate }: ProfileCardPro
   const handleSave = async () => {
     setIsSaving(true)
     try {
-      const userId = "00000000-0000-0000-0000-000000000001" // Demo user ID
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
+
+      if (!user) throw new Error("Not authenticated")
+
+      const userId = user.id
 
       const { error } = await supabase
         .from("user_profiles")

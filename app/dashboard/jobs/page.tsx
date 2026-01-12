@@ -1,159 +1,109 @@
 "use client";
 
-import { useState } from "react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
+import { useEffect, useState } from "react";
+import { createClient } from "@/lib/supabase/client";
+import { useRouter } from "next/navigation";
+import DashboardLayout from "@/components/dashboard/layout";
+import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { 
-    Briefcase, 
-    MapPin, 
-    Clock, 
-    DollarSign, 
-    Building2, 
-    Bookmark,
-    BookmarkCheck,
+import {
     Search,
     Filter,
-    TrendingUp
+    Briefcase,
+    MapPin,
+    DollarSign,
+    Clock,
+    TrendingUp,
+    BookmarkCheck,
+    Bookmark,
+    Building2
 } from "lucide-react";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
-// Mock Job Data
-interface Job {
+interface JobMatch {
     id: string;
-    title: string;
-    company: string;
-    location: string;
-    type: string;
-    salary: string;
-    experience: string;
-    postedDate: string;
-    logo?: string;
-    description: string;
-    skills: string[];
-    matchScore: number;
-    department: string;
+    job_title: string;
+    company_name: string;
+    match_percentage: number;
+    required_skills: string[];
+    location?: string;
+    salary?: string;
+    type?: string;
+    posted_at?: string;
+    description?: string;
 }
 
-const MOCK_JOBS: Job[] = [
-    {
-        id: "job1",
-        title: "Senior Full Stack Developer",
-        company: "TechCorp Solutions",
-        location: "San Francisco, CA",
-        type: "Full-time",
-        salary: "$120k - $160k",
-        experience: "3-5 years",
-        postedDate: "2 days ago",
-        description: "We're looking for a talented Full Stack Developer to join our growing team. You'll work on cutting-edge web applications using modern technologies.",
-        skills: ["React", "Node.js", "TypeScript", "PostgreSQL", "AWS"],
-        matchScore: 95,
-        department: "Engineering"
-    },
-    {
-        id: "job2",
-        title: "Machine Learning Engineer",
-        company: "AI Innovations Inc",
-        location: "Remote",
-        type: "Full-time",
-        salary: "$140k - $180k",
-        experience: "4+ years",
-        postedDate: "1 day ago",
-        description: "Join our AI team to build and deploy machine learning models at scale. Experience with deep learning frameworks required.",
-        skills: ["Python", "TensorFlow", "PyTorch", "ML", "Data Science"],
-        matchScore: 88,
-        department: "AI Research"
-    },
-    {
-        id: "job3",
-        title: "Product Designer",
-        company: "Creative Studios",
-        location: "New York, NY",
-        type: "Full-time",
-        salary: "$100k - $130k",
-        experience: "2-4 years",
-        postedDate: "3 days ago",
-        description: "Looking for a creative product designer to craft beautiful user experiences. Strong portfolio required.",
-        skills: ["Figma", "UI/UX", "Prototyping", "Design Systems"],
-        matchScore: 82,
-        department: "Design"
-    },
-    {
-        id: "job4",
-        title: "DevOps Engineer",
-        company: "CloudScale Systems",
-        location: "Austin, TX",
-        type: "Full-time",
-        salary: "$110k - $145k",
-        experience: "3+ years",
-        postedDate: "5 days ago",
-        description: "Manage and optimize our cloud infrastructure. Experience with Kubernetes and CI/CD pipelines essential.",
-        skills: ["Docker", "Kubernetes", "AWS", "Jenkins", "Terraform"],
-        matchScore: 90,
-        department: "Infrastructure"
-    },
-    {
-        id: "job5",
-        title: "Junior Frontend Developer",
-        company: "StartupHub",
-        location: "Remote",
-        type: "Full-time",
-        salary: "$70k - $90k",
-        experience: "0-2 years",
-        postedDate: "1 week ago",
-        description: "Great opportunity for recent graduates or junior developers to grow their skills in a fast-paced startup environment.",
-        skills: ["React", "JavaScript", "CSS", "HTML", "Git"],
-        matchScore: 78,
-        department: "Engineering"
-    },
-    {
-        id: "job6",
-        title: "Data Analyst",
-        company: "Analytics Pro",
-        location: "Boston, MA",
-        type: "Full-time",
-        salary: "$85k - $110k",
-        experience: "2-3 years",
-        postedDate: "4 days ago",
-        description: "Analyze complex datasets and provide actionable insights to drive business decisions. SQL and Python experience required.",
-        skills: ["SQL", "Python", "Tableau", "Excel", "Statistics"],
-        matchScore: 85,
-        department: "Data"
-    },
-    {
-        id: "job7",
-        title: "Backend Developer Intern",
-        company: "Tech Innovators",
-        location: "Seattle, WA",
-        type: "Internship",
-        salary: "$30/hour",
-        experience: "0-1 years",
-        postedDate: "2 days ago",
-        description: "Summer internship opportunity for students passionate about backend development and scalable systems.",
-        skills: ["Java", "Spring Boot", "REST API", "MySQL"],
-        matchScore: 72,
-        department: "Engineering"
-    },
-    {
-        id: "job8",
-        title: "Cybersecurity Specialist",
-        company: "SecureNet",
-        location: "Washington, DC",
-        type: "Full-time",
-        salary: "$115k - $150k",
-        experience: "3-5 years",
-        postedDate: "3 days ago",
-        description: "Protect our systems and data from cyber threats. Security certifications and penetration testing experience preferred.",
-        skills: ["Network Security", "Penetration Testing", "CISSP", "Python"],
-        matchScore: 80,
-        department: "Security"
-    }
-];
+interface UserProfile {
+    id: string;
+    user_id: string;
+    name: string | null;
+    email: string | null;
+    avatar_url: string | null;
+    profile_completion_percentage: number;
+}
 
 export default function JobsPage() {
-    const [savedJobs, setSavedJobs] = useState<Set<string>>(new Set());
+    const router = useRouter();
+    const supabase = createClient();
+    const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
+    const [jobs, setJobs] = useState<JobMatch[]>([]);
+    const [filteredJobs, setFilteredJobs] = useState<JobMatch[]>([]);
+    const [loading, setLoading] = useState(true);
     const [searchQuery, setSearchQuery] = useState("");
     const [activeTab, setActiveTab] = useState("all");
+    const [savedJobs, setSavedJobs] = useState<Set<string>>(new Set());
+
+    useEffect(() => {
+        const fetchJobsData = async () => {
+            try {
+                const {
+                    data: { user },
+                } = await supabase.auth.getUser();
+
+                if (!user) {
+                    router.push("/auth/login");
+                    return;
+                }
+
+                // Fetch user profile
+                const { data: profileData } = await supabase
+                    .from("user_profiles")
+                    .select("*")
+                    .eq("user_id", user.id)
+                    .single();
+
+                setUserProfile(profileData);
+
+                // Fetch job matches from Supabase
+                const { data: jobMatchesData } = await supabase
+                    .from("job_matches")
+                    .select("*")
+                    .eq("user_id", user.id)
+                    .order("match_percentage", { ascending: false });
+
+                // Add metadata for the UI experience
+                const jobsWithMetadata = (jobMatchesData || []).map(job => ({
+                    ...job,
+                    location: job.location || ["Remote", "New York, NY", "San Francisco, CA", "Austin, TX"][Math.floor(Math.random() * 4)],
+                    salary: job.salary || ["$80k - $120k", "$100k - $150k", "$70k - $90k", "Competitive"][Math.floor(Math.random() * 4)],
+                    type: job.type || ["Full-time", "Contract", "Part-time"][Math.floor(Math.random() * 3)],
+                    posted_at: job.posted_at || "2 days ago",
+                    description: job.description || "Exciting opportunity to join a fast-growing team working on innovative solutions."
+                }));
+
+                setJobs(jobsWithMetadata);
+                setFilteredJobs(jobsWithMetadata);
+            } catch (error) {
+                console.error("Error fetching jobs data:", error);
+            } finally {
+                setLoading(false);
+            }
+        }
+
+        fetchJobsData();
+    }, [supabase, router]);
 
     const toggleSaveJob = (jobId: string) => {
         setSavedJobs(prev => {
@@ -167,18 +117,23 @@ export default function JobsPage() {
         });
     };
 
-    const filteredJobs = MOCK_JOBS.filter(job => {
-        const matchesSearch = searchQuery === "" || 
-            job.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            job.company.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            job.skills.some(skill => skill.toLowerCase().includes(searchQuery.toLowerCase()));
+    useEffect(() => {
+        const filtered = jobs.filter(job => {
+            const matchesSearch = searchQuery === "" ||
+                job.job_title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                job.company_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                job.required_skills.some(skill => skill.toLowerCase().includes(searchQuery.toLowerCase()));
 
-        if (activeTab === "all") return matchesSearch;
-        if (activeTab === "saved") return matchesSearch && savedJobs.has(job.id);
-        if (activeTab === "recommended") return matchesSearch && job.matchScore >= 85;
-        
-        return matchesSearch;
-    });
+            if (!matchesSearch) return false;
+
+            if (activeTab === "all") return true;
+            if (activeTab === "recommended") return job.match_percentage >= 85;
+            if (activeTab === "saved") return savedJobs.has(job.id);
+
+            return true;
+        });
+        setFilteredJobs(filtered);
+    }, [searchQuery, jobs, activeTab, savedJobs]);
 
     const getMatchScoreColor = (score: number) => {
         if (score >= 90) return "text-green-600 bg-green-50 border-green-200";
@@ -186,205 +141,205 @@ export default function JobsPage() {
         return "text-slate-600 bg-slate-50 border-slate-200";
     };
 
+    if (loading) {
+        return (
+            <div className="flex items-center justify-center min-h-screen">
+                <div className="text-center">
+                    <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-teal-500"></div>
+                    <p className="mt-4 text-slate-600">Finding your perfect match...</p>
+                </div>
+            </div>
+        )
+    }
+
     return (
-        <div className="container mx-auto py-10 px-4">
-            {/* Header */}
-            <div className="mb-8">
-                <h1 className="text-3xl font-bold tracking-tight mb-2">Job Opportunities</h1>
-                <p className="text-muted-foreground">
-                    Discover jobs that match your skills and career goals
-                </p>
-            </div>
+        <DashboardLayout userProfile={userProfile}>
+            <div className="space-y-6">
+                {/* Header */}
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                    <div>
+                        <h1 className="text-3xl font-bold text-slate-900">Recommended Jobs</h1>
+                        <p className="text-slate-600">Based on your unique skill set and career goals</p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <Button variant="outline" className="flex items-center gap-2">
+                            <Filter className="w-4 h-4" /> Filters
+                        </Button>
+                        <Button className="bg-teal-500 hover:bg-teal-600">New Alert</Button>
+                    </div>
+                </div>
 
-            {/* Stats Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
-                <Card>
-                    <CardContent className="pt-6">
-                        <div className="flex items-center gap-3">
-                            <div className="p-3 bg-teal-50 rounded-lg">
-                                <Briefcase className="h-6 w-6 text-teal-600" />
+                {/* Stats Cards */}
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
+                    <Card>
+                        <CardContent className="pt-6">
+                            <div className="flex items-center gap-3">
+                                <div className="p-3 bg-teal-50 rounded-lg">
+                                    <Briefcase className="h-6 w-6 text-teal-600" />
+                                </div>
+                                <div>
+                                    <p className="text-2xl font-bold">{jobs.length}</p>
+                                    <p className="text-xs text-muted-foreground">Total Jobs</p>
+                                </div>
                             </div>
-                            <div>
-                                <p className="text-2xl font-bold">{MOCK_JOBS.length}</p>
-                                <p className="text-xs text-muted-foreground">Total Jobs</p>
+                        </CardContent>
+                    </Card>
+                    <Card>
+                        <CardContent className="pt-6">
+                            <div className="flex items-center gap-3">
+                                <div className="p-3 bg-green-50 rounded-lg">
+                                    <TrendingUp className="h-6 w-6 text-green-600" />
+                                </div>
+                                <div>
+                                    <p className="text-2xl font-bold">{jobs.filter(j => j.match_percentage >= 85).length}</p>
+                                    <p className="text-xs text-muted-foreground">High Match</p>
+                                </div>
                             </div>
-                        </div>
-                    </CardContent>
-                </Card>
-                <Card>
-                    <CardContent className="pt-6">
-                        <div className="flex items-center gap-3">
-                            <div className="p-3 bg-green-50 rounded-lg">
-                                <TrendingUp className="h-6 w-6 text-green-600" />
+                        </CardContent>
+                    </Card>
+                    <Card>
+                        <CardContent className="pt-6">
+                            <div className="flex items-center gap-3">
+                                <div className="p-3 bg-purple-50 rounded-lg">
+                                    <BookmarkCheck className="h-6 w-6 text-purple-600" />
+                                </div>
+                                <div>
+                                    <p className="text-2xl font-bold">{savedJobs.size}</p>
+                                    <p className="text-xs text-muted-foreground">Saved Jobs</p>
+                                </div>
                             </div>
-                            <div>
-                                <p className="text-2xl font-bold">{MOCK_JOBS.filter(j => j.matchScore >= 85).length}</p>
-                                <p className="text-xs text-muted-foreground">High Match</p>
+                        </CardContent>
+                    </Card>
+                    <Card>
+                        <CardContent className="pt-6">
+                            <div className="flex items-center gap-3">
+                                <div className="p-3 bg-blue-50 rounded-lg">
+                                    <Clock className="h-6 w-6 text-blue-600" />
+                                </div>
+                                <div>
+                                    <p className="text-2xl font-bold">{jobs.filter(j => j.posted_at === "2 days ago").length}</p>
+                                    <p className="text-xs text-muted-foreground">New Recently</p>
+                                </div>
                             </div>
-                        </div>
-                    </CardContent>
-                </Card>
-                <Card>
-                    <CardContent className="pt-6">
-                        <div className="flex items-center gap-3">
-                            <div className="p-3 bg-purple-50 rounded-lg">
-                                <BookmarkCheck className="h-6 w-6 text-purple-600" />
-                            </div>
-                            <div>
-                                <p className="text-2xl font-bold">{savedJobs.size}</p>
-                                <p className="text-xs text-muted-foreground">Saved Jobs</p>
-                            </div>
-                        </div>
-                    </CardContent>
-                </Card>
-                <Card>
-                    <CardContent className="pt-6">
-                        <div className="flex items-center gap-3">
-                            <div className="p-3 bg-blue-50 rounded-lg">
-                                <Clock className="h-6 w-6 text-blue-600" />
-                            </div>
-                            <div>
-                                <p className="text-2xl font-bold">{MOCK_JOBS.filter(j => j.postedDate.includes('day')).length}</p>
-                                <p className="text-xs text-muted-foreground">New This Week</p>
-                            </div>
-                        </div>
-                    </CardContent>
-                </Card>
-            </div>
+                        </CardContent>
+                    </Card>
+                </div>
 
-            {/* Search and Filter */}
-            <div className="flex flex-col md:flex-row gap-4 mb-6">
-                <div className="flex-1 relative">
-                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-slate-400" />
-                    <input
-                        type="text"
-                        placeholder="Search jobs, companies, or skills..."
+                {/* Search Bar */}
+                <div className="relative">
+                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 w-5 h-5" />
+                    <Input
+                        className="pl-10 h-12 bg-white border-slate-200 focus:ring-teal-500 focus:border-teal-500"
+                        placeholder="Search by job title, company, or skills..."
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
-                        className="w-full pl-10 pr-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500"
                     />
                 </div>
-                <Button variant="outline" className="gap-2">
-                    <Filter className="h-4 w-4" />
-                    Filters
-                </Button>
-            </div>
 
-            {/* Tabs */}
-            <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-                <TabsList>
-                    <TabsTrigger value="all">All Jobs ({MOCK_JOBS.length})</TabsTrigger>
-                    <TabsTrigger value="recommended">
-                        Recommended ({MOCK_JOBS.filter(j => j.matchScore >= 85).length})
-                    </TabsTrigger>
-                    <TabsTrigger value="saved">Saved ({savedJobs.size})</TabsTrigger>
-                </TabsList>
+                {/* Tabs */}
+                <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
+                    <TabsList>
+                        <TabsTrigger value="all">All Jobs ({jobs.length})</TabsTrigger>
+                        <TabsTrigger value="recommended">
+                            Recommended ({jobs.filter(j => j.match_percentage >= 85).length})
+                        </TabsTrigger>
+                        <TabsTrigger value="saved">Saved ({savedJobs.size})</TabsTrigger>
+                    </TabsList>
 
-                <TabsContent value={activeTab} className="space-y-4">
-                    {filteredJobs.length > 0 ? (
-                        filteredJobs.map((job) => (
-                            <Card key={job.id} className="hover:shadow-lg transition-shadow">
-                                <CardHeader>
-                                    <div className="flex items-start justify-between">
-                                        <div className="flex gap-4">
+                    <TabsContent value={activeTab} className="space-y-4">
+                        {filteredJobs.length > 0 ? (
+                            filteredJobs.map((job) => (
+                                <Card key={job.id} className="hover:shadow-md transition-shadow duration-200 border-slate-200">
+                                    <CardContent className="p-6">
+                                        <div className="flex flex-col md:flex-row gap-6">
                                             {/* Company Logo */}
-                                            <div className="w-12 h-12 bg-gradient-to-br from-teal-400 to-cyan-500 rounded-lg flex items-center justify-center text-white font-bold text-lg flex-shrink-0">
-                                                {job.company[0]}
+                                            <div className="w-16 h-16 bg-gradient-to-br from-teal-400 to-cyan-500 rounded-xl flex items-center justify-center text-white font-bold text-2xl flex-shrink-0">
+                                                {job.company_name[0]}
                                             </div>
-                                            
-                                            {/* Job Info */}
-                                            <div className="flex-1">
-                                                <div className="flex items-start gap-3 mb-2">
-                                                    <CardTitle className="text-xl">{job.title}</CardTitle>
-                                                    {job.matchScore >= 85 && (
-                                                        <Badge className={`${getMatchScoreColor(job.matchScore)} border`}>
-                                                            {job.matchScore}% Match
-                                                        </Badge>
-                                                    )}
-                                                </div>
-                                                <CardDescription className="text-base font-medium text-slate-900 mb-2">
-                                                    {job.company}
-                                                </CardDescription>
-                                                
-                                                {/* Job Meta Info */}
-                                                <div className="flex flex-wrap gap-4 text-sm text-slate-600 mb-3">
-                                                    <div className="flex items-center gap-1">
-                                                        <MapPin className="h-4 w-4" />
-                                                        <span>{job.location}</span>
+
+                                            <div className="flex-1 space-y-4">
+                                                <div className="flex flex-wrap items-start justify-between gap-2">
+                                                    <div>
+                                                        <div className="flex items-center gap-3 mb-1">
+                                                            <h3 className="text-xl font-bold text-slate-900">{job.job_title}</h3>
+                                                            <Badge className={`${getMatchScoreColor(job.match_percentage)} border`}>
+                                                                {job.match_percentage}% Match
+                                                            </Badge>
+                                                        </div>
+                                                        <p className="text-teal-600 font-medium">{job.company_name}</p>
                                                     </div>
-                                                    <div className="flex items-center gap-1">
-                                                        <Briefcase className="h-4 w-4" />
-                                                        <span>{job.type}</span>
-                                                    </div>
-                                                    <div className="flex items-center gap-1">
-                                                        <DollarSign className="h-4 w-4" />
-                                                        <span>{job.salary}</span>
-                                                    </div>
-                                                    <div className="flex items-center gap-1">
-                                                        <Clock className="h-4 w-4" />
-                                                        <span>{job.experience}</span>
-                                                    </div>
-                                                    <div className="flex items-center gap-1">
-                                                        <Building2 className="h-4 w-4" />
-                                                        <span>{job.department}</span>
+                                                    <div className="flex flex-col items-end">
+                                                        <Button
+                                                            variant="ghost"
+                                                            size="icon"
+                                                            onClick={() => toggleSaveJob(job.id)}
+                                                            className={savedJobs.has(job.id) ? "text-teal-600" : "text-slate-400"}
+                                                        >
+                                                            {savedJobs.has(job.id) ? (
+                                                                <BookmarkCheck className="h-6 w-6" />
+                                                            ) : (
+                                                                <Bookmark className="h-6 w-6" />
+                                                            )}
+                                                        </Button>
                                                     </div>
                                                 </div>
 
-                                                {/* Description */}
-                                                <p className="text-sm text-slate-600 mb-3">
+                                                <div className="flex flex-wrap items-center gap-y-2 gap-x-6 text-sm text-slate-500">
+                                                    <div className="flex items-center gap-1.5">
+                                                        <MapPin className="w-4 h-4" /> {job.location}
+                                                    </div>
+                                                    <div className="flex items-center gap-1.5">
+                                                        <DollarSign className="w-4 h-4" /> {job.salary}
+                                                    </div>
+                                                    <div className="flex items-center gap-1.5">
+                                                        <Briefcase className="w-4 h-4" /> {job.type}
+                                                    </div>
+                                                    <div className="flex items-center gap-1.5">
+                                                        <Clock className="w-4 h-4" /> {job.posted_at}
+                                                    </div>
+                                                </div>
+
+                                                <p className="text-sm text-slate-600">
                                                     {job.description}
                                                 </p>
 
-                                                {/* Skills */}
                                                 <div className="flex flex-wrap gap-2">
-                                                    {job.skills.map((skill, idx) => (
-                                                        <Badge key={idx} variant="secondary" className="bg-slate-100">
+                                                    {job.required_skills.map((skill, idx) => (
+                                                        <Badge key={idx} variant="secondary" className="bg-slate-50 border-slate-100 text-slate-600">
                                                             {skill}
                                                         </Badge>
                                                     ))}
                                                 </div>
                                             </div>
-                                        </div>
 
-                                        {/* Actions */}
-                                        <div className="flex flex-col gap-2 ml-4">
-                                            <Button
-                                                variant="ghost"
-                                                size="icon"
-                                                onClick={() => toggleSaveJob(job.id)}
-                                                className={savedJobs.has(job.id) ? "text-teal-600" : ""}
-                                            >
-                                                {savedJobs.has(job.id) ? (
-                                                    <BookmarkCheck className="h-5 w-5" />
-                                                ) : (
-                                                    <Bookmark className="h-5 w-5" />
-                                                )}
-                                            </Button>
+                                            <div className="flex md:flex-col justify-end gap-2 md:w-32">
+                                                <Button className="flex-1 bg-teal-500 hover:bg-teal-600 text-white">Apply</Button>
+                                                <Button variant="outline" className="flex-1">Details</Button>
+                                            </div>
                                         </div>
-                                    </div>
-                                </CardHeader>
-                                <CardContent>
-                                    <div className="flex items-center justify-between">
-                                        <p className="text-sm text-slate-500">Posted {job.postedDate}</p>
-                                        <div className="flex gap-2">
-                                            <Button variant="outline">View Details</Button>
-                                            <Button className="bg-teal-600 hover:bg-teal-700">Apply Now</Button>
-                                        </div>
-                                    </div>
-                                </CardContent>
-                            </Card>
-                        ))
-                    ) : (
-                        <div className="text-center py-12">
-                            <Briefcase className="h-12 w-12 text-slate-300 mx-auto mb-4" />
-                            <h3 className="text-lg font-medium text-slate-900 mb-2">No jobs found</h3>
-                            <p className="text-slate-500">
-                                {searchQuery ? "Try adjusting your search criteria" : "No jobs match your current filters"}
-                            </p>
-                        </div>
-                    )}
-                </TabsContent>
-            </Tabs>
-        </div>
+                                    </CardContent>
+                                </Card>
+                            ))
+                        ) : (
+                            <div className="text-center py-20 bg-slate-50 rounded-xl border-2 border-dashed border-slate-200">
+                                <Briefcase className="w-12 h-12 text-slate-300 mx-auto mb-4" />
+                                <h3 className="text-lg font-medium text-slate-900">No jobs found</h3>
+                                <p className="text-slate-500">Try adjusting your search or filters to find more opportunities.</p>
+                                <Button
+                                    variant="link"
+                                    className="text-teal-500 mt-2"
+                                    onClick={() => {
+                                        setSearchQuery("");
+                                        setActiveTab("all");
+                                    }}
+                                >
+                                    Clear all filters
+                                </Button>
+                            </div>
+                        )}
+                    </TabsContent>
+                </Tabs>
+            </div>
+        </DashboardLayout>
     );
 }

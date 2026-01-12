@@ -53,8 +53,7 @@ export default function ProfilePage() {
         return
       }
 
-      // Use demo user ID for now
-      const userId = "00000000-0000-0000-0000-000000000001"
+      const userId = user.id
 
       // Fetch user profile
       const { data: profileData } = await supabase.from("user_profiles").select("*").eq("user_id", userId).single()

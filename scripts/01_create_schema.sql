@@ -106,25 +106,25 @@ CREATE POLICY "Allow public read access to features" ON features
 
 -- Create policies for authenticated users to manage their own data
 CREATE POLICY "Users can view their own profile" ON user_profiles
-  FOR SELECT USING (true);
+  FOR SELECT USING (auth.uid() = user_id);
 
 CREATE POLICY "Users can update their own profile" ON user_profiles
-  FOR UPDATE USING (true);
+  FOR UPDATE USING (auth.uid() = user_id);
 
 CREATE POLICY "Users can insert their own profile" ON user_profiles
-  FOR INSERT WITH CHECK (true);
+  FOR INSERT WITH CHECK (auth.uid() = user_id);
 
 CREATE POLICY "Users can view their own skills" ON user_skills
-  FOR SELECT USING (true);
+  FOR SELECT USING (auth.uid() = user_id);
 
 CREATE POLICY "Users can view their own job matches" ON job_matches
-  FOR SELECT USING (true);
+  FOR SELECT USING (auth.uid() = user_id);
 
 CREATE POLICY "Users can view their own courses" ON courses
-  FOR SELECT USING (true);
+  FOR SELECT USING (auth.uid() = user_id);
 
 CREATE POLICY "Users can view their own notifications" ON notifications
-  FOR SELECT USING (true);
+  FOR SELECT USING (auth.uid() = user_id);
 
 CREATE POLICY "Users can view their own AI suggestions" ON ai_skill_suggestions
-  FOR SELECT USING (true);
+  FOR SELECT USING (auth.uid() = user_id);
