@@ -70,8 +70,12 @@ export default function DashboardPage() {
           return
         }
 
-        // Use demo user ID for now (will use real user ID when implementing actual auth)
-        const userId = "00000000-0000-0000-0000-000000000001"
+        if (!user) {
+          router.push("/auth/login")
+          return
+        }
+
+        const userId = user.id
 
         // Fetch user profile
         const { data: profileData } = await supabase.from("user_profiles").select("*").eq("user_id", userId).single()
