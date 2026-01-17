@@ -69,7 +69,9 @@ export default function CoursesPage() {
           .select("*")
           .order("title", { ascending: true })
 
-        if (coursesError) throw coursesError
+        if (coursesError) {
+          console.error("Courses fetch error:", coursesError.message)
+        }
         setCourses(coursesData || [])
 
         // Fetch user enrollments
@@ -78,10 +80,12 @@ export default function CoursesPage() {
           .select("*")
           .eq("user_id", user.id)
 
-        if (enrollmentsError) throw enrollmentsError
+        if (enrollmentsError) {
+          console.error("Enrollments fetch error:", enrollmentsError.message)
+        }
         setEnrollments(enrollmentsData || [])
       } catch (error) {
-        console.error("Error fetching data:", error)
+        console.error("Error fetching data:", error instanceof Error ? error.message : error)
       } finally {
         setLoading(false)
       }

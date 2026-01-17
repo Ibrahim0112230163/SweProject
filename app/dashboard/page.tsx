@@ -70,11 +70,6 @@ export default function DashboardPage() {
           return
         }
 
-        if (!user) {
-          router.push("/auth/login")
-          return
-        }
-
         const userId = user.id
 
         // Fetch user profile
@@ -84,8 +79,8 @@ export default function DashboardPage() {
         if (!profileData) {
           const newProfile = {
             user_id: userId,
-            name: user?.email?.split("@")[0] || "User",
-            email: user?.email || null,
+            name: user.email?.split("@")[0] || "User",
+            email: user.email || null,
             profile_completion_percentage: 0,
           }
           await supabase.from("user_profiles").insert([newProfile])
@@ -135,8 +130,6 @@ export default function DashboardPage() {
 
     fetchDashboardData()
   }, [supabase, router])
-
-
 
   if (loading) {
     return (

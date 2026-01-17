@@ -26,10 +26,10 @@ export default function Hero() {
         </div>
 
         <div className="relative">
-          <div className="w-full aspect-square bg-amber-700 rounded-3xl shadow-lg overflow-hidden">
+          <div className="w-full aspect-square bg-gradient-to-br from-teal-500 to-cyan-600 rounded-3xl shadow-lg overflow-hidden">
             <img
-              src="/abstract-circular-pattern-orange-brown.jpg"
-              alt="Skill gap visualization"
+              src="https://images.unsplash.com/photo-1522071820081-009f0129c71c?w=800&auto=format&fit=crop&q=80"
+              alt="Team collaboration and skill development"
               className="w-full h-full object-cover"
             />
           </div>
