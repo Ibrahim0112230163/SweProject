@@ -9,8 +9,6 @@ import SkillRadar from "@/components/dashboard/skill-radar"
 import Notifications from "@/components/dashboard/notifications"
 import JobMatches from "@/components/dashboard/job-matches"
 import RecommendedCourses from "@/components/dashboard/recommended-courses"
-import IndustrySkillTrends from "@/components/dashboard/industry-skill-trends"
-
 
 interface UserProfile {
   id: string
@@ -174,9 +172,6 @@ export default function DashboardPage() {
             </Link>
           </div>
         </div>
-
-        {/* Industry Skill Trends */}
-        <IndustrySkillTrends />
 
         {/* Main content grid */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

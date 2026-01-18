@@ -15,7 +15,17 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { createClient } from "@/lib/supabase/client"
-import type { UserProfile } from "@/types/profile"
+
+interface UserProfile {
+  id: string
+  user_id: string
+  name: string | null
+  email: string | null
+  avatar_url: string | null
+  major: string | null
+  bio: string | null
+  profile_completion_percentage: number
+}
 
 interface ProfileCardProps {
   profile: UserProfile | null

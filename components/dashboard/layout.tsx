@@ -5,6 +5,7 @@ import Link from "next/link"
 import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
 import Footer from "@/components/footer"
+import { FloatingAIChat } from "@/components/ai-chat"
 
 interface UserProfile {
   id: string
@@ -101,6 +102,7 @@ export default function DashboardLayout({ userProfile, children }: DashboardLayo
         <div className="p-8">{children}</div>
         <Footer />
       </main>
+      <FloatingAIChat />
     </div>
   )
 }
