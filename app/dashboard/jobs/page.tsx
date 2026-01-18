@@ -21,6 +21,7 @@ import {
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { RealTimeJobs } from "@/components/dashboard/real-time-jobs";
 
 interface JobMatch {
     id: string;
@@ -54,6 +55,7 @@ export default function JobsPage() {
     const [searchQuery, setSearchQuery] = useState("");
     const [activeTab, setActiveTab] = useState("all");
     const [savedJobs, setSavedJobs] = useState<Set<string>>(new Set());
+    const [userSkills, setUserSkills] = useState<string[]>([]);
 
     useEffect(() => {
         const fetchJobsData = async () => {
@@ -75,6 +77,16 @@ export default function JobsPage() {
                     .single();
 
                 setUserProfile(profileData);
+
+                // Fetch user skills from profile
+                const { data: skillsData } = await supabase
+                    .from("user_skills")
+                    .select("skill_name")
+                    .eq("user_id", user.id);
+                
+                if (skillsData) {
+                    setUserSkills(skillsData.map((s: any) => s.skill_name));
+                }
 
                 // Fetch job matches from Supabase
                 const { data: jobMatchesData } = await supabase
@@ -243,10 +255,204 @@ export default function JobsPage() {
                         <TabsTrigger value="recommended">
                             Recommended ({jobs.filter(j => j.match_percentage >= 85).length})
                         </TabsTrigger>
+                        <TabsTrigger value="realtime">
+                            🔴 Live BD Jobs
+                        </TabsTrigger>
                         <TabsTrigger value="saved">Saved ({savedJobs.size})</TabsTrigger>
                     </TabsList>
 
-                    <TabsContent value={activeTab} className="space-y-4">
+                    {/* Real-Time Jobs Tab */}
+                    <TabsContent value="realtime">
+                        <RealTimeJobs userSkills={userSkills} userExperience="Entry level" />
+                    </TabsContent>
+
+                    <TabsContent value="all" className="space-y-4">
+                        {filteredJobs.length > 0 ? (
+                            filteredJobs.map((job) => (
+                                <Card key={job.id} className="hover:shadow-md transition-shadow duration-200 border-slate-200">
+                                    <CardContent className="p-6">
+                                        <div className="flex flex-col md:flex-row gap-6">
+                                            {/* Company Logo */}
+                                            <div className="w-16 h-16 bg-gradient-to-br from-teal-400 to-cyan-500 rounded-xl flex items-center justify-center text-white font-bold text-2xl flex-shrink-0">
+                                                {job.company_name[0]}
+                                            </div>
+
+                                            <div className="flex-1 space-y-4">
+                                                <div className="flex flex-wrap items-start justify-between gap-2">
+                                                    <div>
+                                                        <div className="flex items-center gap-3 mb-1">
+                                                            <h3 className="text-xl font-bold text-slate-900">{job.job_title}</h3>
+                                                            <Badge className={`${getMatchScoreColor(job.match_percentage)} border`}>
+                                                                {job.match_percentage}% Match
+                                                            </Badge>
+                                                        </div>
+                                                        <p className="text-teal-600 font-medium">{job.company_name}</p>
+                                                    </div>
+                                                    <div className="flex flex-col items-end">
+                                                        <Button
+                                                            variant="ghost"
+                                                            size="icon"
+                                                            onClick={() => toggleSaveJob(job.id)}
+                                                            className={savedJobs.has(job.id) ? "text-teal-600" : "text-slate-400"}
+                                                        >
+                                                            {savedJobs.has(job.id) ? (
+                                                                <BookmarkCheck className="h-6 w-6" />
+                                                            ) : (
+                                                                <Bookmark className="h-6 w-6" />
+                                                            )}
+                                                        </Button>
+                                                    </div>
+                                                </div>
+
+                                                <div className="flex flex-wrap items-center gap-y-2 gap-x-6 text-sm text-slate-500">
+                                                    <div className="flex items-center gap-1.5">
+                                                        <MapPin className="w-4 h-4" /> {job.location}
+                                                    </div>
+                                                    <div className="flex items-center gap-1.5">
+                                                        <DollarSign className="w-4 h-4" /> {job.salary}
+                                                    </div>
+                                                    <div className="flex items-center gap-1.5">
+                                                        <Briefcase className="w-4 h-4" /> {job.type}
+                                                    </div>
+                                                    <div className="flex items-center gap-1.5">
+                                                        <Clock className="w-4 h-4" /> {job.posted_at}
+                                                    </div>
+                                                </div>
+
+                                                <p className="text-sm text-slate-600">
+                                                    {job.description}
+                                                </p>
+
+                                                <div className="flex flex-wrap gap-2">
+                                                    {job.required_skills.map((skill, idx) => (
+                                                        <Badge key={idx} variant="secondary" className="bg-slate-50 border-slate-100 text-slate-600">
+                                                            {skill}
+                                                        </Badge>
+                                                    ))}
+                                                </div>
+                                            </div>
+
+                                            <div className="flex md:flex-col justify-end gap-2 md:w-32">
+                                                <Button className="flex-1 bg-teal-500 hover:bg-teal-600 text-white">Apply</Button>
+                                                <Button variant="outline" className="flex-1">Details</Button>
+                                            </div>
+                                        </div>
+                                    </CardContent>
+                                </Card>
+                            ))
+                        ) : (
+                            <div className="text-center py-20 bg-slate-50 rounded-xl border-2 border-dashed border-slate-200">
+                                <Briefcase className="w-12 h-12 text-slate-300 mx-auto mb-4" />
+                                <h3 className="text-lg font-medium text-slate-900">No jobs found</h3>
+                                <p className="text-slate-500">Try adjusting your search or filters to find more opportunities.</p>
+                                <Button
+                                    variant="link"
+                                    className="text-teal-500 mt-2"
+                                    onClick={() => {
+                                        setSearchQuery("");
+                                        setActiveTab("all");
+                                    }}
+                                >
+                                    Clear all filters
+                                </Button>
+                            </div>
+                        )}
+                    </TabsContent>
+
+                    <TabsContent value="recommended" className="space-y-4">
+                        {filteredJobs.length > 0 ? (
+                            filteredJobs.map((job) => (
+                                <Card key={job.id} className="hover:shadow-md transition-shadow duration-200 border-slate-200">
+                                    <CardContent className="p-6">
+                                        <div className="flex flex-col md:flex-row gap-6">
+                                            {/* Company Logo */}
+                                            <div className="w-16 h-16 bg-gradient-to-br from-teal-400 to-cyan-500 rounded-xl flex items-center justify-center text-white font-bold text-2xl flex-shrink-0">
+                                                {job.company_name[0]}
+                                            </div>
+
+                                            <div className="flex-1 space-y-4">
+                                                <div className="flex flex-wrap items-start justify-between gap-2">
+                                                    <div>
+                                                        <div className="flex items-center gap-3 mb-1">
+                                                            <h3 className="text-xl font-bold text-slate-900">{job.job_title}</h3>
+                                                            <Badge className={`${getMatchScoreColor(job.match_percentage)} border`}>
+                                                                {job.match_percentage}% Match
+                                                            </Badge>
+                                                        </div>
+                                                        <p className="text-teal-600 font-medium">{job.company_name}</p>
+                                                    </div>
+                                                    <div className="flex flex-col items-end">
+                                                        <Button
+                                                            variant="ghost"
+                                                            size="icon"
+                                                            onClick={() => toggleSaveJob(job.id)}
+                                                            className={savedJobs.has(job.id) ? "text-teal-600" : "text-slate-400"}
+                                                        >
+                                                            {savedJobs.has(job.id) ? (
+                                                                <BookmarkCheck className="h-6 w-6" />
+                                                            ) : (
+                                                                <Bookmark className="h-6 w-6" />
+                                                            )}
+                                                        </Button>
+                                                    </div>
+                                                </div>
+
+                                                <div className="flex flex-wrap items-center gap-y-2 gap-x-6 text-sm text-slate-500">
+                                                    <div className="flex items-center gap-1.5">
+                                                        <MapPin className="w-4 h-4" /> {job.location}
+                                                    </div>
+                                                    <div className="flex items-center gap-1.5">
+                                                        <DollarSign className="w-4 h-4" /> {job.salary}
+                                                    </div>
+                                                    <div className="flex items-center gap-1.5">
+                                                        <Briefcase className="w-4 h-4" /> {job.type}
+                                                    </div>
+                                                    <div className="flex items-center gap-1.5">
+                                                        <Clock className="w-4 h-4" /> {job.posted_at}
+                                                    </div>
+                                                </div>
+
+                                                <p className="text-sm text-slate-600">
+                                                    {job.description}
+                                                </p>
+
+                                                <div className="flex flex-wrap gap-2">
+                                                    {job.required_skills.map((skill, idx) => (
+                                                        <Badge key={idx} variant="secondary" className="bg-slate-50 border-slate-100 text-slate-600">
+                                                            {skill}
+                                                        </Badge>
+                                                    ))}
+                                                </div>
+                                            </div>
+
+                                            <div className="flex md:flex-col justify-end gap-2 md:w-32">
+                                                <Button className="flex-1 bg-teal-500 hover:bg-teal-600 text-white">Apply</Button>
+                                                <Button variant="outline" className="flex-1">Details</Button>
+                                            </div>
+                                        </div>
+                                    </CardContent>
+                                </Card>
+                            ))
+                        ) : (
+                            <div className="text-center py-20 bg-slate-50 rounded-xl border-2 border-dashed border-slate-200">
+                                <Briefcase className="w-12 h-12 text-slate-300 mx-auto mb-4" />
+                                <h3 className="text-lg font-medium text-slate-900">No jobs found</h3>
+                                <p className="text-slate-500">Try adjusting your search or filters to find more opportunities.</p>
+                                <Button
+                                    variant="link"
+                                    className="text-teal-500 mt-2"
+                                    onClick={() => {
+                                        setSearchQuery("");
+                                        setActiveTab("all");
+                                    }}
+                                >
+                                    Clear all filters
+                                </Button>
+                            </div>
+                        )}
+                    </TabsContent>
+
+                    <TabsContent value="saved" className="space-y-4">
                         {filteredJobs.length > 0 ? (
                             filteredJobs.map((job) => (
                                 <Card key={job.id} className="hover:shadow-md transition-shadow duration-200 border-slate-200">
