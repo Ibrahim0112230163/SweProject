@@ -8,31 +8,7 @@ import ProfileCard from "@/components/profile/profile-card"
 import CurrentSkills from "@/components/profile/current-skills"
 import AISkillMap from "@/components/profile/ai-skill-map"
 import AIPoweredSuggestions from "@/components/profile/ai-suggestions"
-
-interface UserProfile {
-  id: string
-  name: string | null
-  email: string | null
-  avatar_url: string | null
-  major: string | null
-  bio: string | null
-  desired_role: string | null
-  profile_completion_percentage: number
-}
-
-interface UserSkill {
-  id: string
-  skill_name: string
-  proficiency_level: number
-}
-
-interface AISuggestion {
-  id: string
-  skill_name: string
-  suggestion_text: string
-  course_recommendation: string | null
-  suggestion_type: string
-}
+import type { UserProfile, UserSkill, AISuggestion } from "@/types/profile"
 
 export default function ProfilePage() {
   const router = useRouter()
