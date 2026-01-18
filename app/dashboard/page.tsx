@@ -9,6 +9,7 @@ import SkillRadar from "@/components/dashboard/skill-radar"
 import Notifications from "@/components/dashboard/notifications"
 import JobMatches from "@/components/dashboard/job-matches"
 import RecommendedCourses from "@/components/dashboard/recommended-courses"
+import { RealTimeSkillsPieChart } from "@/components/dashboard/real-time-skills-chart"
 
 interface UserProfile {
   id: string
@@ -186,6 +187,9 @@ export default function DashboardPage() {
             <Notifications notifications={notifications} />
           </div>
         </div>
+
+        {/* Real-Time Skills Pie Chart */}
+        <RealTimeSkillsPieChart />
 
         {/* Recommended Courses section */}
         <RecommendedCourses courses={courses} />
