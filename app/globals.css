@@ -76,7 +76,7 @@
 }
 
 @theme inline {
-  --font-sans: "Geist", "Geist Fallback";
+  --font-sans: Verdana, sans-serif;
   --font-mono: "Geist Mono", "Geist Mono Fallback";
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -123,6 +123,7 @@
 
   body {
     @apply bg-background text-foreground;
+    font-family: Verdana, sans-serif;
   }
 }
 
