@@ -264,3 +264,16 @@
 .dark .prose th {
   background-color: rgb(255 255 255 / 0.02);
 }
+
+@media print {
+  /* Hide specific elements but ensure ResumeView is visible */
+  body > *:not(.print\:block) {
+    display: none !important;
+  }
+  
+  /* Reset background for clean printing */
+  body {
+    background: white !important;
+    color: black !important;
+  }
+}

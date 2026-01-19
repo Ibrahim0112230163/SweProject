@@ -8,6 +8,10 @@ import ProfileCard from "@/components/profile/profile-card"
 import CurrentSkills from "@/components/profile/current-skills"
 import AISkillMap from "@/components/profile/ai-skill-map"
 import AIPoweredSuggestions from "@/components/profile/ai-suggestions"
+import ProfileCompletion from "@/components/profile/profile-completion"
+import ResumeView from "@/components/profile/resume-view"
+import { Button } from "@/components/ui/button"
+import { Download } from "lucide-react"
 
 interface UserProfile {
   id: string
@@ -104,12 +108,22 @@ export default function ProfilePage() {
         {/* Header */}
         <div className="flex items-center justify-between">
           <h1 className="text-3xl font-bold text-slate-900">My Profile & Skill Map</h1>
+
+          <Button
+            onClick={() => window.print()}
+            variant="outline"
+            className="flex items-center gap-2 border-teal-200 text-teal-700 hover:bg-teal-50"
+          >
+            <Download className="w-4 h-4" />
+            Export Resume
+          </Button>
         </div>
 
         {/* Main content grid */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Left column - Profile and skills */}
           <div className="space-y-6">
+            <ProfileCompletion profile={userProfile} skills={skills} />
             <ProfileCard profile={userProfile} onProfileUpdate={fetchProfileData} />
             <CurrentSkills skills={skills} onSkillsUpdate={fetchProfileData} />
           </div>
@@ -119,6 +133,11 @@ export default function ProfilePage() {
             <AISkillMap skills={skills} />
             <AIPoweredSuggestions suggestions={suggestions} />
           </div>
+        </div>
+
+        {/* Hidden Resume View for Printing */}
+        <div className="hidden print:block fixed inset-0 bg-white z-[9999]">
+          <ResumeView profile={userProfile} skills={skills} />
         </div>
       </div>
     </DashboardLayout>
