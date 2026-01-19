@@ -11,6 +11,7 @@ import AIPoweredSuggestions from "@/components/profile/ai-suggestions"
 
 interface UserProfile {
   id: string
+  user_id: string
   name: string | null
   email: string | null
   avatar_url: string | null
@@ -110,7 +111,7 @@ export default function ProfilePage() {
           {/* Left column - Profile and skills */}
           <div className="space-y-6">
             <ProfileCard profile={userProfile} onProfileUpdate={fetchProfileData} />
-            <CurrentSkills skills={skills} />
+            <CurrentSkills skills={skills} onSkillsUpdate={fetchProfileData} />
           </div>
 
           {/* Right column - Skill map and suggestions */}
