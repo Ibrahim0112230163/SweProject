@@ -155,7 +155,14 @@ export default function AnalyzerPage() {
         body: formData,
       })
 
-      const data = await response.json()
+      // Check if response is JSON
+      let data;
+      try {
+        data = await response.json()
+      } catch (jsonError) {
+        const text = await response.text()
+        throw new Error(`Server error (${response.status}): ${text || "Unknown error"}`)
+      }
 
       if (!response.ok) {
         const errorMsg = data.error || "Failed to analyze course outline"
@@ -178,7 +185,18 @@ export default function AnalyzerPage() {
       }
     } catch (error) {
       console.error("Error analyzing:", error)
-      setError(error instanceof Error ? error.message : "Failed to analyze course outline")
+      
+      // Extract detailed error message
+      let errorMessage = "Failed to analyze course outline"
+      if (error instanceof Error) {
+        errorMessage = error.message
+        // If it's a fetch error, try to get more details
+        if (error.message.includes("fetch")) {
+          errorMessage = "Network error. Please check your connection and try again."
+        }
+      }
+      
+      setError(errorMessage)
     } finally {
       setAnalyzing(false)
     }

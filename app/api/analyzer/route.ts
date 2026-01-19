@@ -1,144 +1,134 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { createClient } from '@/lib/supabase/server';
+// pdf-parse has broken ESM typings — use require safely
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const pdf = require('pdf-parse') as (
+    buffer: Buffer
+  ) => Promise<{ text: string }>;
+  
+// VERY IMPORTANT: pdf-parse requires Node runtime
+export const runtime = 'nodejs';
 
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || '');
-
+// Optional: allow longer execution (PDF + AI)
 export const maxDuration = 60;
 
+// Initialize Gemini AI safely
+const getGenAI = () => {
+  const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
+  if (!apiKey) {
+    throw new Error(
+      'Gemini API key is not configured. Please set GEMINI_API_KEY or GOOGLE_API_KEY.'
+    );
+  }
+  return new GoogleGenerativeAI(apiKey);
+};
+
 export async function POST(req: NextRequest) {
+  try {
+    const formData = await req.formData();
+
+    const courseTitle = formData.get('courseTitle') as string;
+    const file = formData.get('file') as File;
+    const userId = formData.get('userId') as string;
+
+    if (!courseTitle || !file || !userId) {
+      return NextResponse.json(
+        { error: 'Missing required fields: courseTitle, file, or userId' },
+        { status: 400 }
+      );
+    }
+
+    // Validate PDF
+    if (file.type !== 'application/pdf') {
+      return NextResponse.json(
+        { error: 'Only PDF files are allowed' },
+        { status: 400 }
+      );
+    }
+
+    // Read file buffer
+    const buffer = Buffer.from(await file.arrayBuffer());
+
+    // Limit PDF size (20MB)
+    if (buffer.length > 20 * 1024 * 1024) {
+      return NextResponse.json(
+        { error: 'PDF file too large. Maximum allowed size is 20MB.' },
+        { status: 400 }
+      );
+    }
+
+    // -------------------------------
+    // PDF TEXT EXTRACTION (FIXED)
+    // -------------------------------
+    let outlineText = '';
+
     try {
-        const formData = await req.formData();
-        const courseTitle = formData.get('courseTitle') as string;
-        const file = formData.get('file') as File;
-        const userId = formData.get('userId') as string;
+      console.log('Extracting text from PDF...');
+      const pdfData = await pdf(buffer);
+      outlineText = pdfData.text;
 
-        if (!courseTitle || !file || !userId) {
-            return NextResponse.json(
-                { error: 'Missing required fields: courseTitle, file, or userId' },
-                { status: 400 }
-            );
-        }
+      console.log(`Extracted text length: ${outlineText.length}`);
 
-        // Validate file type
-        if (file.type !== 'application/pdf') {
-            return NextResponse.json(
-                { error: 'Only PDF files are allowed' },
-                { status: 400 }
-            );
-        }
+      if (!outlineText || outlineText.trim().length < 50) {
+        return NextResponse.json(
+          {
+            error:
+              'PDF contains little or no extractable text. It may be scanned or image-only.',
+          },
+          { status: 400 }
+        );
+      }
+    } catch (err: any) {
+      console.error('PDF extraction error:', err);
+      return NextResponse.json(
+        {
+          error: 'Failed to extract text from PDF.',
+          details: err.message,
+        },
+        { status: 400 }
+      );
+    }
 
-        // Read PDF file content
-        const arrayBuffer = await file.arrayBuffer();
-        const buffer = Buffer.from(arrayBuffer);
+    // -------------------------------
+    // GEMINI AI ANALYSIS
+    // -------------------------------
+    let genAI;
+    try {
+      genAI = getGenAI();
+    } catch (err: any) {
+      return NextResponse.json(
+        { error: err.message },
+        { status: 500 }
+      );
+    }
 
-        // Check if API key is set
-        if (!process.env.GEMINI_API_KEY && !process.env.GOOGLE_API_KEY) {
-            return NextResponse.json(
-                { error: 'Gemini API key is not configured. Please set GEMINI_API_KEY or GOOGLE_API_KEY environment variable.' },
-                { status: 500 }
-            );
-        }
+    const analysisPrompt = `
+You are an expert course curriculum analyzer.
 
-        // Use Gemini to extract text from PDF
-        const model = genAI.getGenerativeModel({ model: 'gemini-1.5-pro' });
-        
-        let outlineText = '';
-        
-        try {
-            // Convert PDF to base64 for Gemini
-            const base64File = buffer.toString('base64');
-            
-            // Extract text from PDF using Gemini's file handling
-            const extractPrompt = `Extract and return the full text content from this PDF course outline. Return only the text content, preserving the structure with headings, topics, and sections. Do not add any commentary, just return the extracted text.`;
-            
-            const extractResult = await model.generateContent([
-                extractPrompt,
-                {
-                    inlineData: {
-                        data: base64File,
-                        mimeType: 'application/pdf',
-                    },
-                },
-            ]);
-
-            outlineText = extractResult.response.text();
-            
-            // If extraction failed or returned empty, try alternative approach
-            if (!outlineText || outlineText.trim().length < 50) {
-                throw new Error('PDF text extraction returned insufficient content');
-            }
-        } catch (extractError: any) {
-            console.error('PDF extraction error:', extractError);
-            
-            // Fallback: Try with gemini-pro model or provide error message
-            try {
-                const fallbackModel = genAI.getGenerativeModel({ model: 'gemini-pro' });
-                const base64File = buffer.toString('base64');
-                
-                const extractResult = await fallbackModel.generateContent([
-                    `Extract all text from this PDF document. Return only the text content.`,
-                    {
-                        inlineData: {
-                            data: base64File,
-                            mimeType: 'application/pdf',
-                        },
-                    },
-                ]);
-                
-                outlineText = extractResult.response.text();
-            } catch (fallbackError) {
-                console.error('Fallback extraction also failed:', fallbackError);
-                return NextResponse.json(
-                    { 
-                        error: 'Failed to extract text from PDF. Please ensure the PDF contains readable text (not scanned images).',
-                        details: extractError?.message || String(extractError)
-                    },
-                    { status: 400 }
-                );
-            }
-        }
-
-        // Now analyze the outline and search for trends
-        const analysisPrompt = `You are an expert course curriculum analyzer. Analyze the following course outline and provide a comprehensive analysis.
-
-Course Title: ${courseTitle}
+Course Title:
+${courseTitle}
 
 Course Outline:
 ${outlineText}
 
-Based on current industry trends (as of 2026), job market demands from platforms like LinkedIn, and the latest technologies, please provide:
+Analyze based on current industry trends (2025–2026) and job market demand.
 
-1. **Trending Topics Analysis**: Identify the most in-demand topics and skills currently trending in this field (based on job postings, industry reports, and market trends).
+Return ONLY valid JSON in this exact structure:
 
-2. **Skill Gaps Identification**: Compare the uploaded course outline with current industry demands and identify:
-   - Missing topics that are highly demanded in the job market
-   - Outdated topics that should be updated or replaced
-   - Topics that need more depth or coverage
-   - Emerging technologies or methodologies not covered
-
-3. **Recommended Online Courses**: Suggest 5-7 popular online courses (from platforms like Coursera, Udemy, edX, Pluralsight, etc.) that could help fill the identified gaps. For each course, provide:
-   - Course title
-   - Platform name
-   - Brief description
-   - Why it's recommended
-
-4. **Market Relevance Score**: Provide a score (0-100) indicating how well the course aligns with current market demands.
-
-Return the response as a valid JSON object with this exact structure:
 {
   "trendingTopics": [
     {
       "topic": "topic name",
       "demandLevel": "high|medium|low",
-      "reason": "why it's trending"
+      "reason": "why it is trending"
     }
   ],
   "skillGaps": [
     {
-      "gap": "missing topic or skill",
+      "gap": "missing skill",
       "severity": "critical|high|medium|low",
-      "description": "why this gap matters",
+      "description": "why it matters",
       "marketDemand": "high|medium|low"
     }
   ],
@@ -148,144 +138,118 @@ Return the response as a valid JSON object with this exact structure:
       "platform": "platform name",
       "description": "brief description",
       "reason": "why recommended",
-      "url": "course URL if available"
+      "url": "course URL"
     }
   ],
-  "marketRelevanceScore": 85,
-  "summary": "overall analysis summary"
+  "marketRelevanceScore": 0,
+  "summary": "overall analysis"
 }
+`;
 
-Only return valid JSON, no markdown formatting.`;
+    const model = genAI.getGenerativeModel({
+      model: 'gemini-1.5-flash',
+    });
 
-        let analysisResult;
-        let analysisText;
-        
-        try {
-            analysisResult = await model.generateContent(analysisPrompt);
-            analysisText = analysisResult.response.text();
-            
-            if (!analysisText || analysisText.trim().length < 50) {
-                throw new Error('AI analysis returned insufficient content');
-            }
-        } catch (analysisError: any) {
-            console.error('Analysis error:', analysisError);
-            
-            // Try with gemini-pro as fallback
-            try {
-                const fallbackModel = genAI.getGenerativeModel({ model: 'gemini-pro' });
-                analysisResult = await fallbackModel.generateContent(analysisPrompt);
-                analysisText = analysisResult.response.text();
-            } catch (fallbackError) {
-                console.error('Fallback analysis also failed:', fallbackError);
-                return NextResponse.json(
-                    { 
-                        error: 'Failed to analyze course outline. Please check your API key and try again.',
-                        details: analysisError?.message || String(analysisError)
-                    },
-                    { status: 500 }
-                );
-            }
-        }
+    let analysisText = '';
 
-        // Clean up the response - remove markdown code blocks if present
-        let cleanedText = analysisText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
-        
-        // Try to extract JSON if wrapped in other text
-        const jsonMatch = cleanedText.match(/\{[\s\S]*\}/);
-        if (jsonMatch) {
-            cleanedText = jsonMatch[0];
-        }
+    try {
+      console.log('Running Gemini analysis...');
+      const result = await model.generateContent(analysisPrompt);
+      analysisText = result.response.text();
 
-        let analysisData;
-        try {
-            analysisData = JSON.parse(cleanedText);
-        } catch (parseError) {
-            console.error('Error parsing AI response:', parseError);
-            // Fallback structure
-            analysisData = {
-                trendingTopics: [],
-                skillGaps: [],
-                recommendedCourses: [],
-                marketRelevanceScore: 0,
-                summary: 'Analysis completed but response format was unexpected.'
-            };
-        }
+      if (!analysisText || analysisText.trim().length < 50) {
+        throw new Error('Gemini returned insufficient content');
+      }
+    } catch (err: any) {
+      console.error('Gemini error:', err);
+      return NextResponse.json(
+        {
+          error: 'Failed to analyze course outline with Gemini.',
+          details: err.message,
+        },
+        { status: 500 }
+      );
+    }
 
-        // Upload file to Supabase Storage (optional - continue even if storage fails)
-        const supabase = await createClient();
-        let fileUrl = null;
-        
-        try {
-            const fileName = `outlines/${userId}/${Date.now()}_${file.name}`;
-            
-            const { data: uploadData, error: uploadError } = await supabase.storage
-                .from('course-outlines')
-                .upload(fileName, buffer, {
-                    contentType: 'application/pdf',
-                    upsert: false
-                });
+    // -------------------------------
+    // PARSE AI RESPONSE
+    // -------------------------------
+    let cleanedText = analysisText
+      .replace(/```json/g, '')
+      .replace(/```/g, '')
+      .trim();
 
-            if (!uploadError && uploadData) {
-                const { data: urlData } = await supabase.storage
-                    .from('course-outlines')
-                    .getPublicUrl(fileName);
-                fileUrl = urlData.publicUrl;
-            }
-        } catch (storageError) {
-            // Continue without file URL if storage fails
-            console.warn('Storage upload failed, continuing without file URL:', storageError);
-        }
+    const jsonMatch = cleanedText.match(/\{[\s\S]*\}/);
+    if (jsonMatch) cleanedText = jsonMatch[0];
 
-        // Save analysis to database
-        const { data: analysisRecord, error: dbError } = await supabase
-            .from('course_analyses')
-            .insert([
-                {
-                    user_id: userId,
-                    course_title: courseTitle,
-                    outline_file_url: fileUrl,
-                    outline_text: outlineText.substring(0, 10000), // Limit text length
-                    analysis_result: analysisData,
-                    skill_gaps: analysisData.skillGaps || [],
-                    recommended_courses: analysisData.recommendedCourses || [],
-                },
-            ])
-            .select()
-            .single();
+    let analysisData: any;
 
-        if (dbError) {
-            console.error('Database error:', dbError);
-            // Still return the analysis even if DB save fails
-        }
+    try {
+      analysisData = JSON.parse(cleanedText);
+    } catch {
+      analysisData = {
+        trendingTopics: [],
+        skillGaps: [],
+        recommendedCourses: [],
+        marketRelevanceScore: 0,
+        summary: 'Analysis completed but JSON parsing failed.',
+      };
+    }
 
-        return NextResponse.json({
-            success: true,
-            analysis: analysisData,
-            analysisId: analysisRecord?.id || null,
-            timestamp: new Date().toISOString()
+    // -------------------------------
+    // SAVE TO SUPABASE
+    // -------------------------------
+    const supabase = await createClient();
+    let fileUrl: string | null = null;
+
+    try {
+      const filePath = `outlines/${userId}/${Date.now()}_${file.name}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('course-outlines')
+        .upload(filePath, buffer, {
+          contentType: 'application/pdf',
         });
 
-    } catch (error: any) {
-        console.error('Error in analyzer API:', error);
-        
-        // Provide more specific error messages
-        let errorMessage = 'Failed to analyze course outline';
-        let errorDetails = String(error);
-        
-        if (error?.message?.includes('API key')) {
-            errorMessage = 'Invalid or missing Gemini API key. Please check your environment variables.';
-        } else if (error?.message?.includes('quota') || error?.message?.includes('rate limit')) {
-            errorMessage = 'API quota exceeded or rate limit reached. Please try again later.';
-        } else if (error?.message?.includes('timeout')) {
-            errorMessage = 'Request timed out. The PDF might be too large. Please try with a smaller file.';
-        }
-        
-        return NextResponse.json(
-            { 
-                error: errorMessage,
-                details: errorDetails
-            },
-            { status: 500 }
-        );
+      if (!uploadError) {
+        const { data } = supabase.storage
+          .from('course-outlines')
+          .getPublicUrl(filePath);
+
+        fileUrl = data.publicUrl;
+      }
+    } catch (err) {
+      console.warn('Storage upload failed:', err);
     }
+
+    const { data: record } = await supabase
+      .from('course_analyses')
+      .insert({
+        user_id: userId,
+        course_title: courseTitle,
+        outline_file_url: fileUrl,
+        outline_text: outlineText.slice(0, 10000),
+        analysis_result: analysisData,
+        skill_gaps: analysisData.skillGaps || [],
+        recommended_courses: analysisData.recommendedCourses || [],
+      })
+      .select()
+      .single();
+
+    return NextResponse.json({
+      success: true,
+      analysis: analysisData,
+      analysisId: record?.id ?? null,
+      timestamp: new Date().toISOString(),
+    });
+  } catch (err: any) {
+    console.error('Analyzer API error:', err);
+    return NextResponse.json(
+      {
+        error: 'Unexpected server error',
+        details: err.message,
+      },
+      { status: 500 }
+    );
+  }
 }
