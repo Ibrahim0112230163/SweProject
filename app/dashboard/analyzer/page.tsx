@@ -158,7 +158,9 @@ export default function AnalyzerPage() {
       const data = await response.json()
 
       if (!response.ok) {
-        throw new Error(data.error || "Failed to analyze course outline")
+        const errorMsg = data.error || "Failed to analyze course outline"
+        const details = data.details ? `\n\nDetails: ${data.details}` : ""
+        throw new Error(`${errorMsg}${details}`)
       }
 
       setAnalysisResult(data.analysis)

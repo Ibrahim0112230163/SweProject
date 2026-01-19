@@ -32,26 +32,72 @@ export async function POST(req: NextRequest) {
         const arrayBuffer = await file.arrayBuffer();
         const buffer = Buffer.from(arrayBuffer);
 
+        // Check if API key is set
+        if (!process.env.GEMINI_API_KEY && !process.env.GOOGLE_API_KEY) {
+            return NextResponse.json(
+                { error: 'Gemini API key is not configured. Please set GEMINI_API_KEY or GOOGLE_API_KEY environment variable.' },
+                { status: 500 }
+            );
+        }
+
         // Use Gemini to extract text from PDF
         const model = genAI.getGenerativeModel({ model: 'gemini-1.5-pro' });
         
-        // Convert PDF to base64 for Gemini
-        const base64File = buffer.toString('base64');
+        let outlineText = '';
         
-        // Extract text from PDF using Gemini
-        const extractPrompt = `Extract and return the full text content from this PDF course outline. Return only the text content, preserving the structure with headings, topics, and sections.`;
-        
-        const extractResult = await model.generateContent([
-            extractPrompt,
-            {
-                inlineData: {
-                    data: base64File,
-                    mimeType: 'application/pdf',
+        try {
+            // Convert PDF to base64 for Gemini
+            const base64File = buffer.toString('base64');
+            
+            // Extract text from PDF using Gemini's file handling
+            const extractPrompt = `Extract and return the full text content from this PDF course outline. Return only the text content, preserving the structure with headings, topics, and sections. Do not add any commentary, just return the extracted text.`;
+            
+            const extractResult = await model.generateContent([
+                extractPrompt,
+                {
+                    inlineData: {
+                        data: base64File,
+                        mimeType: 'application/pdf',
+                    },
                 },
-            },
-        ]);
+            ]);
 
-        const outlineText = extractResult.response.text();
+            outlineText = extractResult.response.text();
+            
+            // If extraction failed or returned empty, try alternative approach
+            if (!outlineText || outlineText.trim().length < 50) {
+                throw new Error('PDF text extraction returned insufficient content');
+            }
+        } catch (extractError: any) {
+            console.error('PDF extraction error:', extractError);
+            
+            // Fallback: Try with gemini-pro model or provide error message
+            try {
+                const fallbackModel = genAI.getGenerativeModel({ model: 'gemini-pro' });
+                const base64File = buffer.toString('base64');
+                
+                const extractResult = await fallbackModel.generateContent([
+                    `Extract all text from this PDF document. Return only the text content.`,
+                    {
+                        inlineData: {
+                            data: base64File,
+                            mimeType: 'application/pdf',
+                        },
+                    },
+                ]);
+                
+                outlineText = extractResult.response.text();
+            } catch (fallbackError) {
+                console.error('Fallback extraction also failed:', fallbackError);
+                return NextResponse.json(
+                    { 
+                        error: 'Failed to extract text from PDF. Please ensure the PDF contains readable text (not scanned images).',
+                        details: extractError?.message || String(extractError)
+                    },
+                    { status: 400 }
+                );
+            }
+        }
 
         // Now analyze the outline and search for trends
         const analysisPrompt = `You are an expert course curriculum analyzer. Analyze the following course outline and provide a comprehensive analysis.
@@ -111,8 +157,35 @@ Return the response as a valid JSON object with this exact structure:
 
 Only return valid JSON, no markdown formatting.`;
 
-        const analysisResult = await model.generateContent(analysisPrompt);
-        const analysisText = analysisResult.response.text();
+        let analysisResult;
+        let analysisText;
+        
+        try {
+            analysisResult = await model.generateContent(analysisPrompt);
+            analysisText = analysisResult.response.text();
+            
+            if (!analysisText || analysisText.trim().length < 50) {
+                throw new Error('AI analysis returned insufficient content');
+            }
+        } catch (analysisError: any) {
+            console.error('Analysis error:', analysisError);
+            
+            // Try with gemini-pro as fallback
+            try {
+                const fallbackModel = genAI.getGenerativeModel({ model: 'gemini-pro' });
+                analysisResult = await fallbackModel.generateContent(analysisPrompt);
+                analysisText = analysisResult.response.text();
+            } catch (fallbackError) {
+                console.error('Fallback analysis also failed:', fallbackError);
+                return NextResponse.json(
+                    { 
+                        error: 'Failed to analyze course outline. Please check your API key and try again.',
+                        details: analysisError?.message || String(analysisError)
+                    },
+                    { status: 500 }
+                );
+            }
+        }
 
         // Clean up the response - remove markdown code blocks if present
         let cleanedText = analysisText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
@@ -192,10 +265,26 @@ Only return valid JSON, no markdown formatting.`;
             timestamp: new Date().toISOString()
         });
 
-    } catch (error) {
+    } catch (error: any) {
         console.error('Error in analyzer API:', error);
+        
+        // Provide more specific error messages
+        let errorMessage = 'Failed to analyze course outline';
+        let errorDetails = String(error);
+        
+        if (error?.message?.includes('API key')) {
+            errorMessage = 'Invalid or missing Gemini API key. Please check your environment variables.';
+        } else if (error?.message?.includes('quota') || error?.message?.includes('rate limit')) {
+            errorMessage = 'API quota exceeded or rate limit reached. Please try again later.';
+        } else if (error?.message?.includes('timeout')) {
+            errorMessage = 'Request timed out. The PDF might be too large. Please try with a smaller file.';
+        }
+        
         return NextResponse.json(
-            { error: 'Failed to analyze course outline', details: String(error) },
+            { 
+                error: errorMessage,
+                details: errorDetails
+            },
             { status: 500 }
         );
     }
