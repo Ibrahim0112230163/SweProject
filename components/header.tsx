@@ -1,9 +1,19 @@
 "use client"
 
 import Link from "next/link"
+import { useEffect, useRef } from "react"
 import { Button } from "@/components/ui/button"
 
 export default function Header() {
+  const loginButtonRef = useRef<HTMLAnchorElement>(null)
+
+  useEffect(() => {
+    // Auto-focus the login button when the component mounts
+    if (loginButtonRef.current) {
+      loginButtonRef.current.focus()
+    }
+  }, [])
+
   return (
     <header className="border-b border-slate-200 bg-white">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
@@ -32,7 +42,7 @@ export default function Header() {
 
           <div className="flex items-center gap-3">
             <Button variant="ghost" asChild>
-              <Link href="/auth/login">Login</Link>
+              <Link href="/auth/login" ref={loginButtonRef}>Login</Link>
             </Button>
             <Button className="bg-teal-500 hover:bg-teal-600 text-white" asChild>
               <Link href="/auth/sign-up">Get Started</Link>
