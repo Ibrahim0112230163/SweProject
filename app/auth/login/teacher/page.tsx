@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input"
 import Link from "next/link"
 import { Eye, EyeOff } from "lucide-react"
 
-export default function LoginPage() {
+export default function TeacherLoginPage() {
   const router = useRouter()
   const supabase = createClient()
   const [email, setEmail] = useState("")
@@ -46,14 +46,14 @@ export default function LoginPage() {
         return
       }
 
-      // Check user type and redirect accordingly
+      // Check if user is a teacher
       const { data: profile } = await supabase
         .from("user_profiles")
         .select("user_type")
         .eq("user_id", signInData.user.id)
         .single()
 
-      // If no profile exists, create one as student
+      // If no profile exists, create one as teacher
       if (!profile) {
         const { error: createError } = await supabase
           .from("user_profiles")
@@ -61,24 +61,24 @@ export default function LoginPage() {
             {
               user_id: signInData.user.id,
               email: signInData.user.email,
-              name: signInData.user.email?.split("@")[0] || "User",
-              user_type: "student",
+              name: signInData.user.email?.split("@")[0] || "Teacher",
+              user_type: "teacher",
               profile_completion_percentage: 0,
             },
           ])
 
         if (createError) {
-          console.error("Error creating user profile:", createError)
+          console.error("Error creating teacher profile:", createError)
         }
-        router.push("/dashboard")
-      } else {
-        // Redirect based on user type
-        if (profile.user_type === "teacher") {
-          router.push("/dashboard/teacher")
-        } else {
-          router.push("/dashboard")
-        }
+      } else if (profile.user_type !== "teacher") {
+        // User exists but is not a teacher
+        await supabase.auth.signOut()
+        setError("This account is not registered as a teacher. Please use the student login.")
+        return
       }
+
+      // Redirect to teacher dashboard
+      router.push("/dashboard/teacher")
     } catch (err) {
       setError("An unexpected error occurred")
       console.error("Login error:", err)
@@ -97,8 +97,8 @@ export default function LoginPage() {
             </div>
             <span className="text-slate-900">Skill+</span>
           </Link>
-          <h1 className="text-2xl font-bold text-slate-900">Welcome Back</h1>
-          <p className="text-slate-600 mt-2">Sign in to your account to continue</p>
+          <h1 className="text-2xl font-bold text-slate-900">Teacher Login</h1>
+          <p className="text-slate-600 mt-2">Sign in to your teacher account</p>
         </div>
 
         <form onSubmit={handleSignIn} className="space-y-4">
@@ -111,7 +111,7 @@ export default function LoginPage() {
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              placeholder="you@example.com"
+              placeholder="teacher@example.com"
               required
               disabled={loading}
               autoFocus
@@ -161,13 +161,13 @@ export default function LoginPage() {
             </div>
           </div>
           
-          <Link href="/auth/login/teacher">
+          <Link href="/auth/login">
             <Button 
               type="button" 
               variant="outline" 
               className="w-full border-slate-300 text-slate-700 hover:bg-slate-50"
             >
-              Login as Teacher
+              Student Login
             </Button>
           </Link>
         </div>

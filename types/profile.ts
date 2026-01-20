@@ -10,6 +10,18 @@ export interface UserProfile {
     bio: string | null
     desired_role: string | null
     profile_completion_percentage: number
+    user_type?: "student" | "teacher"
+}
+
+export interface TeacherProfile {
+    id: string
+    user_id: string
+    department: string | null
+    designation: string | null
+    specializations: string[] | null
+    office_hours: string | null
+    rating: number
+    bio: string | null
 }
 
 export interface UserSkill {
