@@ -10,6 +10,10 @@ import Notifications from "@/components/dashboard/notifications"
 import JobMatches from "@/components/dashboard/job-matches"
 import RecommendedCourses from "@/components/dashboard/recommended-courses"
 import { RealTimeSkillsPieChart } from "@/components/dashboard/real-time-skills-chart"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { Bell } from "lucide-react"
+import { Button } from "@/components/ui/button"
+import { ScrollArea } from "@/components/ui/scroll-area"
 
 interface UserProfile {
   id: string
@@ -58,6 +62,47 @@ export default function DashboardPage() {
   const [courses, setCourses] = useState<Course[]>([])
   const [notifications, setNotifications] = useState<Notification[]>([])
   const [loading, setLoading] = useState(true)
+  const [notificationOpen, setNotificationOpen] = useState(false)
+
+  const unreadCount = notifications.filter((n) => !n.is_read).length
+
+  const markAsRead = async (notificationId: string) => {
+    try {
+      const { error } = await supabase
+        .from("notifications")
+        .update({ is_read: true })
+        .eq("id", notificationId)
+
+      if (!error) {
+        setNotifications(
+          notifications.map((n) => (n.id === notificationId ? { ...n, is_read: true } : n))
+        )
+      }
+    } catch (error) {
+      console.error("Error marking notification as read:", error)
+    }
+  }
+
+  const markAllAsRead = async () => {
+    try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
+      if (!user) return
+
+      const { error } = await supabase
+        .from("notifications")
+        .update({ is_read: true })
+        .eq("user_id", user.id)
+        .eq("is_read", false)
+
+      if (!error) {
+        setNotifications(notifications.map((n) => ({ ...n, is_read: true })))
+      }
+    } catch (error) {
+      console.error("Error marking all notifications as read:", error)
+    }
+  }
 
   useEffect(() => {
     const fetchDashboardData = async () => {
@@ -113,13 +158,13 @@ export default function DashboardPage() {
 
         setCourses(coursesData || [])
 
-        // Fetch notifications
+        // Fetch notifications (get more for the dropdown)
         const { data: notificationsData } = await supabase
           .from("notifications")
           .select("*")
           .eq("user_id", userId)
           .order("created_at", { ascending: false })
-          .limit(3)
+          .limit(10)
 
         setNotifications(notificationsData || [])
       } catch (error) {
@@ -155,9 +200,91 @@ export default function DashboardPage() {
               placeholder="Search..."
               className="px-4 py-2 bg-white border border-slate-200 rounded-lg text-slate-600 focus:outline-none focus:border-teal-500"
             />
-            <button className="relative p-2 text-slate-600 hover:text-slate-900">
-              🔔<span className="absolute top-0 right-0 w-2 h-2 bg-teal-500 rounded-full"></span>
-            </button>
+            <Popover open={notificationOpen} onOpenChange={setNotificationOpen}>
+              <PopoverTrigger asChild>
+                <Button variant="ghost" size="icon" className="relative">
+                  <Bell className="h-5 w-5 text-slate-600" />
+                  {unreadCount > 0 && (
+                    <span className="absolute top-0 right-0 w-5 h-5 bg-teal-500 text-white text-xs rounded-full flex items-center justify-center font-bold">
+                      {unreadCount > 9 ? "9+" : unreadCount}
+                    </span>
+                  )}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-80 p-0" align="end">
+                <div className="flex items-center justify-between p-4 border-b">
+                  <h3 className="font-semibold text-slate-900">Notifications</h3>
+                  {unreadCount > 0 && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={markAllAsRead}
+                      className="text-xs text-teal-600 hover:text-teal-700"
+                    >
+                      Mark all as read
+                    </Button>
+                  )}
+                </div>
+                <ScrollArea className="h-[400px]">
+                  <div className="p-2">
+                    {notifications.length > 0 ? (
+                      <div className="space-y-2">
+                        {notifications.map((notification) => (
+                          <div
+                            key={notification.id}
+                            className={`p-3 rounded-lg cursor-pointer transition-colors ${
+                              !notification.is_read
+                                ? "bg-teal-50 hover:bg-teal-100 border border-teal-200"
+                                : "bg-slate-50 hover:bg-slate-100"
+                            }`}
+                            onClick={() => {
+                              if (!notification.is_read) {
+                                markAsRead(notification.id)
+                              }
+                            }}
+                          >
+                            <div className="flex gap-3">
+                              <span className="text-xl flex-shrink-0 mt-0.5">
+                                {notification.notification_type === "job_match"
+                                  ? "💼"
+                                  : notification.notification_type === "course_deadline"
+                                    ? "📚"
+                                    : notification.notification_type === "profile"
+                                      ? "👤"
+                                      : "🔔"}
+                              </span>
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-start justify-between gap-2">
+                                  <p className="font-medium text-slate-900 text-sm">{notification.title}</p>
+                                  {!notification.is_read && (
+                                    <span className="w-2 h-2 bg-teal-500 rounded-full flex-shrink-0 mt-1.5"></span>
+                                  )}
+                                </div>
+                                <p className="text-xs text-slate-600 mt-1">{notification.description}</p>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="text-center py-8">
+                        <Bell className="w-12 h-12 text-slate-300 mx-auto mb-2" />
+                        <p className="text-sm text-slate-600">No notifications yet</p>
+                      </div>
+                    )}
+                  </div>
+                </ScrollArea>
+                {notifications.length > 0 && (
+                  <div className="p-3 border-t">
+                    <Link href="/dashboard/notifications">
+                      <Button variant="outline" className="w-full text-sm" onClick={() => setNotificationOpen(false)}>
+                        View all notifications
+                      </Button>
+                    </Link>
+                  </div>
+                )}
+              </PopoverContent>
+            </Popover>
             <Link href="/dashboard/profile">
               {userProfile?.avatar_url ? (
                 <img
