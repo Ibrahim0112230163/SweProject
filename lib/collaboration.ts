@@ -1,4 +1,6 @@
-import { StudentProfile, TeamRecommendation } from "@/types/collaboration";
+import { StudentProfile, TeamRecommendation, ChatSession, Message } from "@/types/collaboration";
+import { SupabaseClient } from "@supabase/supabase-js";
+
 
 // Helper to calculate Jaccard Similarity for arrays
 function calculateJaccardIndex(setA: string[], setB: string[]): number {
@@ -83,4 +85,155 @@ export function generateTeamRecommendations(user: StudentProfile, candidates: St
         })
         .filter((x): x is TeamRecommendation => x !== null)
         .sort((a, b) => b.compatibilityScore - a.compatibilityScore);
+}
+
+// 6. Database Integration Helpers
+
+export async function fetchUserProfile(supabase: SupabaseClient, userId: string): Promise<StudentProfile | null> {
+    const { data: profile, error } = await supabase
+        .from('user_profiles')
+        .select('*, user_skills(*)')
+        .eq('user_id', userId)
+        .single();
+
+    if (error || !profile) return null;
+
+    // Map DB profile to StudentProfile
+    return {
+        id: profile.user_id,
+        name: profile.name || 'Anonymous',
+        email: profile.email || '',
+        avatarUrl: profile.avatar_url,
+        academicLevel: 'Undergraduate', // Default
+        department: profile.major || 'Computer Science',
+        university: 'UIU', // Default
+        researchInterests: [], // Need to store this in DB or assume from bio/skills
+        skills: profile.user_skills?.map((s: any) => ({
+            name: s.skill_name,
+            category: 'Technical',
+            level: s.proficiency_level > 80 ? 'Expert' : s.proficiency_level > 60 ? 'Advanced' : 'Intermediate'
+        })) || [],
+        projectPreferences: ['Product'], // Default
+        availability: 'Part-time',
+        collaborationPreference: profile.desired_role === 'Leader' ? 'Leader' : 'Contributor'
+    };
+}
+
+export async function fetchCandidates(supabase: SupabaseClient): Promise<StudentProfile[]> {
+    const { data: profiles, error } = await supabase
+        .from('user_profiles')
+        .select('*, user_skills(*)');
+
+    if (error) return [];
+
+    return profiles.map((p: any) => ({
+        id: p.user_id,
+        name: p.name || 'Anonymous',
+        email: p.email || '',
+        avatarUrl: p.avatar_url,
+        academicLevel: 'Undergraduate',
+        department: p.major || 'General',
+        university: 'UIU',
+        researchInterests: [],
+        skills: p.user_skills?.map((s: any) => ({
+            name: s.skill_name,
+            category: 'Technical',
+            level: 'Intermediate'
+        })) || [],
+        projectPreferences: [],
+        availability: 'Part-time',
+        collaborationPreference: 'Contributor'
+    }));
+}
+
+export async function createChatSession(supabase: SupabaseClient, userIds: string[], type: 'direct' | 'group' = 'direct') {
+    // 1. Create Session
+    const { data: session, error: sessionError } = await supabase
+        .from('chat_sessions')
+        .insert({ type })
+        .select()
+        .single();
+
+    if (sessionError) throw sessionError;
+
+    // 2. Add Participants
+    const participants = userIds.map(uid => ({
+        session_id: session.id,
+        user_id: uid
+    }));
+
+    const { error: partError } = await supabase
+        .from('chat_participants')
+        .insert(participants);
+
+    if (partError) throw partError;
+
+    return session;
+}
+
+export async function sendMessage(supabase: SupabaseClient, sessionId: string, senderId: string, content: string) {
+    return await supabase
+        .from('messages')
+        .insert({
+            session_id: sessionId,
+            sender_id: senderId,
+            content
+        })
+        .select()
+        .single();
+}
+
+export async function getUserChats(supabase: SupabaseClient, userId: string): Promise<ChatSession[]> {
+    // Fetch sessions where user is participant
+    const { data: sessions, error } = await supabase
+        .from('chat_sessions')
+        .select(`
+            *,
+            chat_participants!inner(user_id),
+            messages(content, created_at, sender_id, is_read)
+        `)
+        .eq('chat_participants.user_id', userId)
+        .order('updated_at', { ascending: false });
+
+    if (error) throw error;
+
+    // Need to fetch other participants details
+    return await Promise.all(sessions.map(async (s: any) => {
+        // Get all participants for this session
+        const { data: parts } = await supabase
+            .from('chat_participants')
+            .select('user_id')
+            .eq('session_id', s.id);
+
+        const participantIds = parts?.map((p: any) => p.user_id) || [];
+
+        // Fetch profiles
+        const { data: profiles } = await supabase
+            .from('user_profiles')
+            .select('user_id, name, avatar_url')
+            .in('user_id', participantIds);
+
+        const mappedParticipants = profiles?.map((p: any) => ({
+            id: p.user_id,
+            name: p.name,
+            avatarUrl: p.avatar_url,
+            // ... minimal profile
+        })) as any[]; // Type assertion for brevity
+
+        const lastMsg = s.messages && s.messages.length > 0 ? s.messages[s.messages.length - 1] : null;
+
+        return {
+            id: s.id,
+            participants: mappedParticipants || [],
+            messages: [], // Don't load all messages in list view
+            lastMessage: lastMsg ? {
+                id: 'latest', // Mock ID if not fetched
+                senderId: lastMsg.sender_id,
+                content: lastMsg.content,
+                timestamp: new Date(lastMsg.created_at),
+                isRead: lastMsg.is_read
+            } : undefined,
+            unreadCount: 0
+        };
+    }));
 }
