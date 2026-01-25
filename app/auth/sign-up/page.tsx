@@ -54,7 +54,6 @@ export default function SignUpPage() {
               user_id: signUpData.user.id,
               email: signUpData.user.email,
               name: email.split("@")[0] || "User",
-              user_type: "student",
               profile_completion_percentage: 0,
             },
           ])
@@ -66,7 +65,9 @@ export default function SignUpPage() {
             hint: profileError.hint,
             code: profileError.code
           })
-          // Don't block signup if profile creation fails - it can be created on login
+          setError("Account created but profile setup failed. Please try logging in or contact support.")
+          setLoading(false)
+          return
         }
       }
 

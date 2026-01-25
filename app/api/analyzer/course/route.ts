@@ -1,7 +1,6 @@
 import { ChatGoogleGenerativeAI } from "@langchain/google-genai"
 import { HumanMessage } from "@langchain/core/messages"
 import { createClient } from "@/lib/supabase/server"
-import { cookies } from "next/headers"
 
 export const maxDuration = 60
 
@@ -25,9 +24,9 @@ export async function POST(req: Request) {
       })
     }
 
-    // Initialize AI model
+    // Initialize AI model (use same as chatbot)
     const model = new ChatGoogleGenerativeAI({
-      model: "gemini-1.5-flash",
+      model: "gemini-3-flash-preview",
       apiKey: process.env.GOOGLE_API_KEY,
       temperature: 0.3, // Lower temperature for more consistent extraction
     })
@@ -82,8 +81,7 @@ Ensure the JSON is properly formatted and contains arrays for skills, outcomes, 
     }
 
     // Get authenticated user
-    const cookieStore = cookies()
-    const supabase = createClient(cookieStore)
+    const supabase = await createClient()
     const {
       data: { user },
     } = await supabase.auth.getUser()

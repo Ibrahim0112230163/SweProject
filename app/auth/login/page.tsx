@@ -46,18 +46,25 @@ export default function LoginPage() {
         return
       }
 
-      // Check user type and redirect accordingly
-      const { data: profile } = await supabase
+      // Check if profile exists (don't select user_type - it may not exist yet)
+      const { data: profile, error: profileError } = await supabase
         .from("user_profiles")
-        .select("user_type")
+        .select("id, user_id")
         .eq("user_id", signInData.user.id)
         .single()
 
-      // If no profile exists, create one as student (without user_type initially)
-      if (!profile) {
-        try {
-          // First, try to create profile without user_type (for compatibility)
-          const { data: newProfile, error: createError } = await supabase
+      if (profileError) {
+        console.error("Error fetching profile:", {
+          message: profileError.message,
+          details: profileError.details,
+          hint: profileError.hint,
+          code: profileError.code,
+        })
+
+        // PGRST116 means no rows found - profile doesn't exist
+        if (profileError.code === "PGRST116") {
+          // Create profile for existing auth user
+          const { error: createError } = await supabase
             .from("user_profiles")
             .insert([
               {
@@ -67,47 +74,29 @@ export default function LoginPage() {
                 profile_completion_percentage: 0,
               },
             ])
-            .select()
-            .single()
 
           if (createError) {
-            console.error("Error creating user profile:", {
+            console.error("Failed to create missing profile:", {
               message: createError.message,
               details: createError.details,
-              hint: createError.hint,
               code: createError.code,
             })
-            
-            // Provide helpful error message
-            if (createError.code === "23505") {
-              setError("Profile already exists. Please try refreshing the page.")
-            } else if (createError.message?.toLowerCase().includes("column")) {
-              setError(`Database column missing. Error: ${createError.message}`)
-            } else {
-              setError(`Failed to create profile: ${createError.message || "Unknown error"}`)
-            }
+            setError("Failed to set up your profile. Please contact support.")
             return
           }
-          
-          console.log("User profile created successfully:", newProfile)
+
+          // Profile created successfully, redirect to dashboard
           router.push("/dashboard")
-        } catch (profileError: any) {
-          console.error("Profile creation exception:", {
-            error: profileError,
-            message: profileError?.message,
-            stack: profileError?.stack,
-          })
-          setError(`An error occurred: ${profileError?.message || "Please contact support"}`)
+          return
+        } else {
+          // Other database error
+          setError(`Database error: ${profileError.message}`)
           return
         }
-      } else {
-        // Redirect based on user type
-        if (profile.user_type === "teacher") {
-          router.push("/dashboard/teacher")
-        } else {
-          router.push("/dashboard")
-        }
       }
+
+      // Profile exists - redirect to dashboard (user_type column may not exist yet)
+      router.push("/dashboard")
     } catch (err) {
       setError("An unexpected error occurred")
       console.error("Login error:", err)
