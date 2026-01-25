@@ -49,6 +49,52 @@ export interface UserSkill {
     proficiency_level: number
 }
 
+// Industry Expert profile
+export interface IndustryExpert {
+    id: string
+    auth_user_id?: string
+    company_name: string
+    email: string | null
+    password_hash?: string
+    contact_person: string
+    position: string | null
+    company_website: string | null
+    industry_sector: string | null
+    verified: boolean
+    created_at?: string
+}
+
+// Industry Job Post
+export interface IndustryPost {
+    id: string
+    company_name: string
+    posted_by: string
+    title: string
+    post_type: 'challenge' | 'job' | 'both'
+    description: string
+    required_skills: string[]
+    challenge_task_url: string | null
+    salary_range: string | null
+    location_type: 'remote' | 'onsite' | 'hybrid'
+    application_link: string | null
+    is_active: boolean
+    created_at: string
+    deadline: string | null
+}
+
+// Skill Validation
+export interface SkillValidation {
+    id: string
+    student_id: string
+    industry_post_id: string
+    validated_by: string
+    company_name: string
+    skill_name: string
+    validation_date: string
+    challenge_submission_url: string | null
+    notes: string | null
+}
+
 export interface AISuggestion {
     id: string
     skill_name: string

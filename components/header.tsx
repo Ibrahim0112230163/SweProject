@@ -41,9 +41,26 @@ export default function Header() {
           </nav>
 
           <div className="flex items-center gap-3">
-            <Button variant="ghost" asChild>
-              <Link href="/auth/login" ref={loginButtonRef}>Login</Link>
-            </Button>
+            <div className="relative group">
+              <Button variant="ghost" asChild>
+                <Link href="/auth/login" ref={loginButtonRef}>Student Login</Link>
+              </Button>
+              {/* Dropdown for other login types */}
+              <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-slate-200 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
+                <Link 
+                  href="/auth/login/teacher" 
+                  className="block px-4 py-3 text-sm text-slate-700 hover:bg-slate-50 rounded-t-lg transition-colors"
+                >
+                  👨‍🏫 Teacher Login
+                </Link>
+                <Link 
+                  href="/auth/login/industry" 
+                  className="block px-4 py-3 text-sm text-slate-700 hover:bg-slate-50 rounded-b-lg transition-colors border-t border-slate-100"
+                >
+                  🏢 Industry Login
+                </Link>
+              </div>
+            </div>
             <Button className="bg-teal-500 hover:bg-teal-600 text-white" asChild>
               <Link href="/auth/sign-up">Get Started</Link>
             </Button>

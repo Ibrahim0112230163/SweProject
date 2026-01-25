@@ -10,6 +10,7 @@ import AISkillMap from "@/components/profile/ai-skill-map"
 import AIPoweredSuggestions from "@/components/profile/ai-suggestions"
 import ProfileCompletion from "@/components/profile/profile-completion"
 import ResumeView from "@/components/profile/resume-view"
+import IndustryValidatedSkills from "@/components/profile/industry-validated-skills"
 import { Button } from "@/components/ui/button"
 import { Download } from "lucide-react"
 
@@ -130,6 +131,7 @@ export default function ProfilePage() {
 
           {/* Right column - Skill map and suggestions */}
           <div className="lg:col-span-2 space-y-6">
+            <IndustryValidatedSkills />
             <AISkillMap skills={skills} />
             <AIPoweredSuggestions suggestions={suggestions} />
           </div>
