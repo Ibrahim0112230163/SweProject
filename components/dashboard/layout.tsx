@@ -33,7 +33,6 @@ export default function DashboardLayout({ userProfile, children }: DashboardLayo
 
   const navItems = [
     { label: "Dashboard", icon: "📊", href: "/dashboard", active: pathname === "/dashboard" },
-    { label: "Analyzer", icon: "🔍", href: "/dashboard/analyzer", active: pathname === "/dashboard/analyzer" },
     { label: "Profile", icon: "👤", href: "/dashboard/profile", active: pathname === "/dashboard/profile" },
     { label: "Jobs", icon: "💼", href: "/dashboard/jobs", active: pathname === "/dashboard/jobs" },
     { label: "Courses", icon: "📚", href: "/dashboard/courses", active: pathname === "/dashboard/courses" },

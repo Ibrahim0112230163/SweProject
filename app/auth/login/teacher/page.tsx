@@ -6,22 +6,22 @@ import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import Link from "next/link"
-import { Eye, EyeOff } from "lucide-react"
+import { Eye, EyeOff, GraduationCap } from "lucide-react"
 
 export default function TeacherLoginPage() {
   const router = useRouter()
   const supabase = createClient()
-  const [email, setEmail] = useState("")
+  const [username, setUsername] = useState("")
   const [password, setPassword] = useState("")
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
-  const emailInputRef = useRef<HTMLInputElement>(null)
+  const usernameInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
-    // Auto-focus on email field when component mounts
-    if (emailInputRef.current) {
-      emailInputRef.current.focus()
+    // Auto-focus on username field when component mounts
+    if (usernameInputRef.current) {
+      usernameInputRef.current.focus()
     }
   }, [])
 
@@ -31,58 +31,43 @@ export default function TeacherLoginPage() {
     setLoading(true)
 
     try {
-      const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      })
+      // Hash the entered password
+      const encoder = new TextEncoder()
+      const data = encoder.encode(password)
+      const hashBuffer = await crypto.subtle.digest('SHA-256', data)
+      const hashArray = Array.from(new Uint8Array(hashBuffer))
+      const passwordHash = hashArray.map(b => b.toString(16).padStart(2, '0')).join('')
 
-      if (signInError) {
-        setError(signInError.message)
-        return
-      }
-
-      if (!signInData.user) {
-        setError("Failed to authenticate user")
-        return
-      }
-
-      // Check if user is a teacher
-      const { data: profile } = await supabase
-        .from("user_profiles")
-        .select("user_type")
-        .eq("user_id", signInData.user.id)
+      // Check if teacher exists with matching password
+      const { data: teacherData, error: teacherError } = await supabase
+        .from("teachers")
+        .select("username, full_name, password_hash")
+        .eq("username", username)
         .single()
 
-      // If no profile exists, create one as teacher
-      if (!profile) {
-        const { error: createError } = await supabase
-          .from("user_profiles")
-          .insert([
-            {
-              user_id: signInData.user.id,
-              email: signInData.user.email,
-              name: signInData.user.email?.split("@")[0] || "Teacher",
-              user_type: "teacher",
-              profile_completion_percentage: 0,
-            },
-          ])
-
-        if (createError) {
-          console.error("Error creating teacher profile:", createError)
-        }
-      } else if (profile.user_type !== "teacher") {
-        // User exists but is not a teacher
-        await supabase.auth.signOut()
-        setError("This account is not registered as a teacher. Please use the student login.")
+      if (teacherError || !teacherData) {
+        setError("Teacher account not found. Please sign up first.")
+        setLoading(false)
         return
       }
+
+      // Verify password
+      if (teacherData.password_hash !== passwordHash) {
+        setError("Invalid credentials. Please check your password and try again.")
+        setLoading(false)
+        return
+      }
+
+      // Store teacher session in localStorage
+      localStorage.setItem("teacher_username", username)
+      localStorage.setItem("teacher_session", "active")
 
       // Redirect to teacher dashboard
       router.push("/dashboard/teacher")
+      router.refresh()
     } catch (err) {
       setError("An unexpected error occurred")
       console.error("Login error:", err)
-    } finally {
       setLoading(false)
     }
   }
@@ -105,13 +90,13 @@ export default function TeacherLoginPage() {
           {error && <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">{error}</div>}
 
           <div>
-            <label className="block text-sm font-medium text-slate-900 mb-2">Email</label>
+            <label className="block text-sm font-medium text-slate-900 mb-2">Username</label>
             <Input
-              ref={emailInputRef}
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="teacher@example.com"
+              ref={usernameInputRef}
+              type="text"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              placeholder="Enter your username"
               required
               disabled={loading}
               autoFocus
@@ -174,8 +159,8 @@ export default function TeacherLoginPage() {
 
         <p className="text-center text-slate-600 mt-6">
           Don't have an account?{" "}
-          <Link href="/auth/sign-up" className="text-teal-500 hover:text-teal-600 font-medium">
-            Sign up
+          <Link href="/auth/sign-up/teacher" className="text-teal-500 hover:text-teal-600 font-medium">
+            Sign up as Teacher
           </Link>
         </p>
       </div>

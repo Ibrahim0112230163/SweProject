@@ -28,17 +28,46 @@ export default function SignUpPage() {
     setLoading(true)
 
     try {
-      const { error: signUpError } = await supabase.auth.signUp({
+      const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
         email,
         password,
         options: {
           emailRedirectTo: process.env.NEXT_PUBLIC_DEV_SUPABASE_REDIRECT_URL || window.location.origin,
+          data: {
+            email: email,
+            name: email.split("@")[0] || "User",
+          }
         },
       })
 
       if (signUpError) {
         setError(signUpError.message)
         return
+      }
+
+      // Create user profile immediately after signup
+      if (signUpData.user) {
+        const { error: profileError } = await supabase
+          .from("user_profiles")
+          .insert([
+            {
+              user_id: signUpData.user.id,
+              email: signUpData.user.email,
+              name: email.split("@")[0] || "User",
+              user_type: "student",
+              profile_completion_percentage: 0,
+            },
+          ])
+
+        if (profileError) {
+          console.error("Error creating user profile:", {
+            message: profileError.message,
+            details: profileError.details,
+            hint: profileError.hint,
+            code: profileError.code
+          })
+          // Don't block signup if profile creation fails - it can be created on login
+        }
       }
 
       router.push("/auth/sign-up-success")

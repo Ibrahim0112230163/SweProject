@@ -4,69 +4,51 @@ import { useEffect, useState } from "react"
 import { createClient } from "@/lib/supabase/client"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
-import DashboardLayout from "@/components/dashboard/layout"
-import { getUserProfile, getTeacherProfile, isTeacher } from "@/lib/utils/auth"
-import type { UserProfile, TeacherProfile } from "@/types/profile"
+import TeacherLayout from "@/components/dashboard/teacher-layout"
+import TeacherProfileEditor from "@/components/teacher/profile-editor"
+import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Badge } from "@/components/ui/badge"
+import { UserCircle, BookOpen, Users, MessageSquare, Settings, TrendingUp, Clock, Award } from "lucide-react"
+import type { Teacher } from "@/types/profile"
 
 export default function TeacherDashboardPage() {
   const router = useRouter()
   const supabase = createClient()
-  const [userProfile, setUserProfile] = useState<UserProfile | null>(null)
-  const [teacherProfile, setTeacherProfile] = useState<TeacherProfile | null>(null)
+  const [teacher, setTeacher] = useState<Teacher | null>(null)
+  const [username, setUsername] = useState<string>("")
   const [loading, setLoading] = useState(true)
+  const [showProfileEditor, setShowProfileEditor] = useState(false)
 
   useEffect(() => {
     const fetchDashboardData = async () => {
       try {
-        const {
-          data: { user },
-        } = await supabase.auth.getUser()
+        // Check if teacher is logged in via localStorage
+        const teacherSession = localStorage.getItem("teacher_session")
+        const teacherUsername = localStorage.getItem("teacher_username")
 
-        if (!user) {
+        if (!teacherSession || !teacherUsername) {
           router.push("/auth/login/teacher")
           return
         }
 
-        // Verify user is a teacher
-        const userIsTeacher = await isTeacher()
-        if (!userIsTeacher) {
-          // Redirect to student dashboard if not a teacher
-          router.push("/dashboard")
-          return
-        }
+        setUsername(teacherUsername)
 
-        // Fetch user profile
-        const profile = await getUserProfile()
-        setUserProfile(profile)
+        // Fetch teacher profile from teachers table
+        const { data: teacherData, error: teacherError } = await supabase
+          .from("teachers")
+          .select("*")
+          .eq("username", teacherUsername)
+          .single()
 
-        // Fetch teacher profile
-        const teacherProf = await getTeacherProfile()
-        setTeacherProfile(teacherProf)
-
-        // If teacher profile doesn't exist, create a basic one
-        if (!teacherProf) {
-          const { error: createError } = await supabase
-            .from("teacher_profiles")
-            .insert([
-              {
-                user_id: user.id,
-                department: null,
-                designation: null,
-                specializations: [],
-                office_hours: null,
-                rating: 0,
-                bio: null,
-              },
-            ])
-
-          if (!createError) {
-            const { data: newProfile } = await supabase
-              .from("teacher_profiles")
-              .select("*")
-              .eq("user_id", user.id)
-              .single()
-            setTeacherProfile(newProfile as TeacherProfile | null)
-          }
+        if (teacherError) {
+          console.error("Error fetching teacher profile:", teacherError)
+          // If teacher not found, clear session and redirect to login
+          localStorage.removeItem("teacher_session")
+          localStorage.removeItem("teacher_username")
+          router.push("/auth/login/teacher")
+        } else {
+          setTeacher(teacherData)
         }
       } catch (error) {
         console.error("Error fetching teacher dashboard data:", error)
@@ -77,6 +59,22 @@ export default function TeacherDashboardPage() {
 
     fetchDashboardData()
   }, [supabase, router])
+
+  const handleProfileUpdate = async () => {
+    // Refetch teacher profile after update
+    if (username) {
+      const { data: teacherData } = await supabase
+        .from("teachers")
+        .select("*")
+        .eq("username", username)
+        .single()
+      
+      if (teacherData) {
+        setTeacher(teacherData)
+      }
+    }
+  }
+
 
   if (loading) {
     return (
@@ -89,148 +87,310 @@ export default function TeacherDashboardPage() {
     )
   }
 
+  if (showProfileEditor && username) {
+    return (
+      <TeacherLayout teacher={teacher}>
+        <div className="space-y-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-3xl font-bold text-slate-900">Edit Profile</h1>
+              <p className="text-slate-600 mt-1">Update your teacher profile information</p>
+            </div>
+            <Button 
+              onClick={() => setShowProfileEditor(false)} 
+              variant="outline"
+            >
+              Back to Dashboard
+            </Button>
+          </div>
+          <TeacherProfileEditor username={username} onUpdate={handleProfileUpdate} />
+        </div>
+      </TeacherLayout>
+    )
+  }
+
   return (
-    <DashboardLayout userProfile={userProfile}>
+    <TeacherLayout teacher={teacher}>
       <div className="space-y-6">
         {/* Welcome section */}
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold text-slate-900">Welcome, {userProfile?.name || "Teacher"}!</h1>
-            <p className="text-slate-600 mt-1">Teacher Dashboard</p>
+            <h1 className="text-3xl font-bold text-slate-900">
+              Welcome, {teacher?.full_name || "Teacher"}!
+            </h1>
+            <p className="text-slate-600 mt-1">@{username}</p>
           </div>
-          <div className="flex items-center gap-4">
-            <Link href="/dashboard/profile">
-              {userProfile?.avatar_url ? (
-                <img
-                  src={userProfile.avatar_url}
-                  alt={userProfile.name || "Teacher"}
-                  className="w-10 h-10 rounded-full object-cover cursor-pointer hover:opacity-80 transition-opacity border-2 border-teal-100"
-                />
-              ) : (
-                <div className="w-10 h-10 bg-gradient-to-br from-teal-400 to-teal-600 rounded-full flex items-center justify-center text-white font-bold cursor-pointer hover:opacity-80 transition-opacity">
-                  {userProfile?.name?.[0]?.toUpperCase() || "T"}
-                </div>
-              )}
-            </Link>
-          </div>
+          <Button 
+            onClick={() => setShowProfileEditor(true)}
+            className="bg-teal-500 hover:bg-teal-600"
+          >
+            <Settings className="h-4 w-4 mr-2" />
+            Edit Profile
+          </Button>
         </div>
 
-        {/* Teacher Info Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <div className="bg-gradient-to-br from-teal-50 to-cyan-50 rounded-lg p-6 border border-teal-100">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-slate-600 mb-1">Department</p>
-                <p className="text-xl font-semibold text-slate-900">
-                  {teacherProfile?.department || "Not set"}
-                </p>
-              </div>
-              <div className="w-12 h-12 bg-teal-100 rounded-full flex items-center justify-center">
-                <span className="text-2xl">🏫</span>
-              </div>
-            </div>
-          </div>
+        {/* Stats Overview */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium text-slate-600">Total Students</CardTitle>
+              <Users className="h-4 w-4 text-teal-600" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-slate-900">0</div>
+              <p className="text-xs text-slate-500 mt-1">Active enrollments</p>
+            </CardContent>
+          </Card>
 
-          <div className="bg-gradient-to-br from-teal-50 to-cyan-50 rounded-lg p-6 border border-teal-100">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-slate-600 mb-1">Designation</p>
-                <p className="text-xl font-semibold text-slate-900">
-                  {teacherProfile?.designation || "Not set"}
-                </p>
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium text-slate-600">Courses</CardTitle>
+              <BookOpen className="h-4 w-4 text-teal-600" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-slate-900">
+                {teacher?.core_subjects?.length || 0}
               </div>
-              <div className="w-12 h-12 bg-teal-100 rounded-full flex items-center justify-center">
-                <span className="text-2xl">👨‍🏫</span>
-              </div>
-            </div>
-          </div>
+              <p className="text-xs text-slate-500 mt-1">Core subjects</p>
+            </CardContent>
+          </Card>
 
-          <div className="bg-gradient-to-br from-teal-50 to-cyan-50 rounded-lg p-6 border border-teal-100">
-            <div className="flex items-center justify-between">
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium text-slate-600">Experience</CardTitle>
+              <Award className="h-4 w-4 text-teal-600" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-slate-900">
+                {teacher?.years_of_experience ? `${teacher.years_of_experience}` : "0"}
+              </div>
+              <p className="text-xs text-slate-500 mt-1">Years teaching</p>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium text-slate-600">Messages</CardTitle>
+              <MessageSquare className="h-4 w-4 text-teal-600" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-slate-900">0</div>
+              <p className="text-xs text-slate-500 mt-1">Unread messages</p>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Institution & Profile Info */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Institution Details</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
               <div>
-                <p className="text-sm text-slate-600 mb-1">Rating</p>
-                <p className="text-xl font-semibold text-slate-900">
-                  {teacherProfile?.rating ? `${teacherProfile.rating.toFixed(1)} ⭐` : "No rating yet"}
+                <p className="text-sm text-slate-500">Affiliation</p>
+                <p className="text-base font-medium text-slate-900">
+                  {teacher?.institutional_affiliation || "Not specified"}
                 </p>
               </div>
-              <div className="w-12 h-12 bg-teal-100 rounded-full flex items-center justify-center">
-                <span className="text-2xl">⭐</span>
+              <div>
+                <p className="text-sm text-slate-500">Username</p>
+                <p className="text-base font-medium text-slate-900">@{teacher?.username}</p>
               </div>
-            </div>
-          </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Quick Stats</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-slate-600">Specializations</span>
+                <Badge variant="secondary">{teacher?.niche_specializations?.length || 0}</Badge>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-slate-600">Technical Skills</span>
+                <Badge variant="secondary">{teacher?.technical_skills?.length || 0}</Badge>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-slate-600">Languages</span>
+                <Badge variant="secondary">{teacher?.languages_spoken?.length || 0}</Badge>
+              </div>
+            </CardContent>
+          </Card>
         </div>
 
         {/* Quick Actions */}
-        <div className="bg-white rounded-lg border border-slate-200 p-6">
-          <h2 className="text-xl font-semibold text-slate-900 mb-4">Quick Actions</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            <Link
-              href="/dashboard/profile"
-              className="flex flex-col items-center justify-center p-6 bg-slate-50 rounded-lg hover:bg-slate-100 transition-colors border border-slate-200"
-            >
-              <span className="text-3xl mb-2">👤</span>
-              <span className="text-sm font-medium text-slate-900">Update Profile</span>
-            </Link>
-            <Link
-              href="/dashboard/collaboration"
-              className="flex flex-col items-center justify-center p-6 bg-slate-50 rounded-lg hover:bg-slate-100 transition-colors border border-slate-200"
-            >
-              <span className="text-3xl mb-2">🤝</span>
-              <span className="text-sm font-medium text-slate-900">Collaboration</span>
-            </Link>
-            <Link
-              href="/dashboard/courses"
-              className="flex flex-col items-center justify-center p-6 bg-slate-50 rounded-lg hover:bg-slate-100 transition-colors border border-slate-200"
-            >
-              <span className="text-3xl mb-2">📚</span>
-              <span className="text-sm font-medium text-slate-900">Courses</span>
-            </Link>
-            <Link
-              href="/dashboard/messages"
-              className="flex flex-col items-center justify-center p-6 bg-slate-50 rounded-lg hover:bg-slate-100 transition-colors border border-slate-200"
-            >
-              <span className="text-3xl mb-2">✉️</span>
-              <span className="text-sm font-medium text-slate-900">Messages</span>
-            </Link>
-          </div>
-        </div>
+        <Card>
+          <CardHeader>
+            <CardTitle>Quick Actions</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <button
+                onClick={() => setShowProfileEditor(true)}
+                className="flex flex-col items-center justify-center p-6 bg-gradient-to-br from-teal-50 to-teal-100 rounded-lg hover:from-teal-100 hover:to-teal-200 transition-all border border-teal-200"
+              >
+                <Settings className="h-8 w-8 mb-2 text-teal-700" />
+                <span className="text-sm font-medium text-slate-900">Edit Profile</span>
+              </button>
+              
+              <Link
+                href="/dashboard/teacher/students"
+                className="flex flex-col items-center justify-center p-6 bg-gradient-to-br from-blue-50 to-blue-100 rounded-lg hover:from-blue-100 hover:to-blue-200 transition-all border border-blue-200"
+              >
+                <Users className="h-8 w-8 mb-2 text-blue-700" />
+                <span className="text-sm font-medium text-slate-900">View Students</span>
+              </Link>
+              
+              <Link
+                href="/dashboard/teacher/courses"
+                className="flex flex-col items-center justify-center p-6 bg-gradient-to-br from-purple-50 to-purple-100 rounded-lg hover:from-purple-100 hover:to-purple-200 transition-all border border-purple-200"
+              >
+                <BookOpen className="h-8 w-8 mb-2 text-purple-700" />
+                <span className="text-sm font-medium text-slate-900">My Courses</span>
+              </Link>
+              
+              <Link
+                href="/dashboard/teacher/messages"
+                className="flex flex-col items-center justify-center p-6 bg-gradient-to-br from-amber-50 to-amber-100 rounded-lg hover:from-amber-100 hover:to-amber-200 transition-all border border-amber-200"
+              >
+                <MessageSquare className="h-8 w-8 mb-2 text-amber-700" />
+                <span className="text-sm font-medium text-slate-900">Messages</span>
+              </Link>
+            </div>
+          </CardContent>
+        </Card>
 
-        {/* Teacher Information */}
+        {/* Profile Details */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <div className="bg-white rounded-lg border border-slate-200 p-6">
-            <h2 className="text-xl font-semibold text-slate-900 mb-4">Office Hours</h2>
-            <p className="text-slate-600">
-              {teacherProfile?.office_hours || "Office hours not set. Update your profile to add office hours."}
-            </p>
-          </div>
+          {/* Core Subjects */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Core Subjects</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {teacher?.core_subjects && teacher.core_subjects.length > 0 ? (
+                <div className="flex flex-wrap gap-2">
+                  {teacher.core_subjects.map((subject, index) => (
+                    <Badge key={index} variant="secondary">
+                      {subject}
+                    </Badge>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-slate-500">No subjects added yet. Click "Edit Profile" to add subjects.</p>
+              )}
+            </CardContent>
+          </Card>
 
-          <div className="bg-white rounded-lg border border-slate-200 p-6">
-            <h2 className="text-xl font-semibold text-slate-900 mb-4">Specializations</h2>
-            {teacherProfile?.specializations && teacherProfile.specializations.length > 0 ? (
-              <div className="flex flex-wrap gap-2">
-                {teacherProfile.specializations.map((spec, index) => (
-                  <span
-                    key={index}
-                    className="px-3 py-1 bg-teal-100 text-teal-700 rounded-full text-sm font-medium"
-                  >
-                    {spec}
-                  </span>
-                ))}
-              </div>
-            ) : (
-              <p className="text-slate-600">No specializations added yet. Update your profile to add specializations.</p>
-            )}
-          </div>
+          {/* Specializations */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Specializations</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {teacher?.niche_specializations && teacher.niche_specializations.length > 0 ? (
+                <div className="flex flex-wrap gap-2">
+                  {teacher.niche_specializations.map((spec, index) => (
+                    <Badge key={index} variant="secondary">
+                      {spec}
+                    </Badge>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-slate-500">No specializations added yet. Click "Edit Profile" to add.</p>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Technical Skills */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Technical Skills</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {teacher?.technical_skills && teacher.technical_skills.length > 0 ? (
+                <div className="flex flex-wrap gap-2">
+                  {teacher.technical_skills.map((skill, index) => (
+                    <Badge key={index} variant="outline">
+                      {skill}
+                    </Badge>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-slate-500">No technical skills added yet.</p>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Languages */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Languages Spoken</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {teacher?.languages_spoken && teacher.languages_spoken.length > 0 ? (
+                <div className="flex flex-wrap gap-2">
+                  {teacher.languages_spoken.map((lang, index) => (
+                    <Badge key={index} variant="outline">
+                      {lang}
+                    </Badge>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-slate-500">No languages added yet.</p>
+              )}
+            </CardContent>
+          </Card>
         </div>
 
-        {/* Bio Section */}
-        {teacherProfile?.bio && (
-          <div className="bg-white rounded-lg border border-slate-200 p-6">
-            <h2 className="text-xl font-semibold text-slate-900 mb-4">Bio</h2>
-            <p className="text-slate-600">{teacherProfile.bio}</p>
-          </div>
+        {/* Teaching Philosophy */}
+        {teacher?.teaching_philosophy && (
+          <Card>
+            <CardHeader>
+              <CardTitle>Teaching Philosophy</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-slate-700">{teacher.teaching_philosophy}</p>
+            </CardContent>
+          </Card>
         )}
+
+        {/* Educational Background */}
+        {teacher?.educational_background && teacher.educational_background.length > 0 && (
+          <Card>
+            <CardHeader>
+              <CardTitle>Educational Background</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <ul className="space-y-2">
+                {teacher.educational_background.map((edu, index) => (
+                  <li key={index} className="flex items-start">
+                    <span className="text-teal-600 mr-2">•</span>
+                    <span className="text-slate-700">{edu}</span>
+                  </li>
+                ))}
+              </ul>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Recent Activity */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Recent Activity</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-center py-8 text-slate-500">
+              <Clock className="h-12 w-12 mx-auto mb-3 text-slate-300" />
+              <p>No recent activity</p>
+              <p className="text-sm mt-1">Your recent teaching activities will appear here</p>
+            </div>
+          </CardContent>
+        </Card>
       </div>
-    </DashboardLayout>
+    </TeacherLayout>
   )
 }

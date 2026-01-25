@@ -55,7 +55,7 @@ export default function LoginPage() {
 
       // If no profile exists, create one as student
       if (!profile) {
-        const { error: createError } = await supabase
+        const { data: newProfile, error: createError } = await supabase
           .from("user_profiles")
           .insert([
             {
@@ -66,10 +66,21 @@ export default function LoginPage() {
               profile_completion_percentage: 0,
             },
           ])
+          .select()
+          .single()
 
         if (createError) {
-          console.error("Error creating user profile:", createError)
+          console.error("Error creating user profile:", {
+            message: createError.message,
+            details: createError.details,
+            hint: createError.hint,
+            code: createError.code
+          })
+          setError("Failed to create user profile. Please try again.")
+          return
         }
+        
+        console.log("User profile created successfully:", newProfile)
         router.push("/dashboard")
       } else {
         // Redirect based on user type

@@ -24,6 +24,25 @@ export interface TeacherProfile {
     bio: string | null
 }
 
+// Teacher profile based on database schema
+export interface Teacher {
+    username: string // Primary key
+    full_name: string
+    educational_background: string[]
+    qualifications: string[]
+    institutional_affiliation: string | null
+    years_of_experience: number | null
+    core_subjects: string[]
+    niche_specializations: string[]
+    technical_skills: string[]
+    teaching_philosophy: string | null
+    languages_spoken: string[]
+    bio_intro_video_url: string | null
+    personal_interests: string[]
+    created_at?: string
+    updated_at?: string
+}
+
 export interface UserSkill {
     id: string
     skill_name: string
