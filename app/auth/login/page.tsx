@@ -53,35 +53,53 @@ export default function LoginPage() {
         .eq("user_id", signInData.user.id)
         .single()
 
-      // If no profile exists, create one as student
+      // If no profile exists, create one as student (without user_type initially)
       if (!profile) {
-        const { data: newProfile, error: createError } = await supabase
-          .from("user_profiles")
-          .insert([
-            {
-              user_id: signInData.user.id,
-              email: signInData.user.email,
-              name: signInData.user.email?.split("@")[0] || "User",
-              user_type: "student",
-              profile_completion_percentage: 0,
-            },
-          ])
-          .select()
-          .single()
+        try {
+          // First, try to create profile without user_type (for compatibility)
+          const { data: newProfile, error: createError } = await supabase
+            .from("user_profiles")
+            .insert([
+              {
+                user_id: signInData.user.id,
+                email: signInData.user.email,
+                name: signInData.user.email?.split("@")[0] || "User",
+                profile_completion_percentage: 0,
+              },
+            ])
+            .select()
+            .single()
 
-        if (createError) {
-          console.error("Error creating user profile:", {
-            message: createError.message,
-            details: createError.details,
-            hint: createError.hint,
-            code: createError.code
+          if (createError) {
+            console.error("Error creating user profile:", {
+              message: createError.message,
+              details: createError.details,
+              hint: createError.hint,
+              code: createError.code,
+            })
+            
+            // Provide helpful error message
+            if (createError.code === "23505") {
+              setError("Profile already exists. Please try refreshing the page.")
+            } else if (createError.message?.toLowerCase().includes("column")) {
+              setError(`Database column missing. Error: ${createError.message}`)
+            } else {
+              setError(`Failed to create profile: ${createError.message || "Unknown error"}`)
+            }
+            return
+          }
+          
+          console.log("User profile created successfully:", newProfile)
+          router.push("/dashboard")
+        } catch (profileError: any) {
+          console.error("Profile creation exception:", {
+            error: profileError,
+            message: profileError?.message,
+            stack: profileError?.stack,
           })
-          setError("Failed to create user profile. Please try again.")
+          setError(`An error occurred: ${profileError?.message || "Please contact support"}`)
           return
         }
-        
-        console.log("User profile created successfully:", newProfile)
-        router.push("/dashboard")
       } else {
         // Redirect based on user type
         if (profile.user_type === "teacher") {
