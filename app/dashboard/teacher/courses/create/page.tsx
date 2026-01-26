@@ -49,28 +49,40 @@ export default function CreateCoursePage() {
 
         setTeacher(teacherData)
 
-        // Get the teacher's user_id from user_profiles
-        const { data: userProfile } = await supabase
-          .from("user_profiles")
-          .select("user_id, email")
-          .eq("email", teacherData.email || "")
-          .single()
+        // Get the teacher's user_id from user_profiles or create one
+        let userId: string | null = null
 
-        if (userProfile) {
-          setTeacherUserId(userProfile.user_id)
-        } else {
-          // Try to get from auth user
+        // First, try to find by email
+        if (teacherData.email) {
+          const { data: userProfile } = await supabase
+            .from("user_profiles")
+            .select("user_id, email")
+            .eq("email", teacherData.email)
+            .single()
+
+          if (userProfile) {
+            userId = userProfile.user_id
+          }
+        }
+
+        // If not found by email, try to get from auth user
+        if (!userId) {
           const {
             data: { user },
           } = await supabase.auth.getUser()
           if (user) {
-            setTeacherUserId(user.id)
-          } else {
-            toast.error("Unable to link teacher account. Please contact support.")
-            router.push("/dashboard/teacher")
-            return
+            userId = user.id
           }
         }
+
+        // If still no userId, we need to create a Supabase auth user or link
+        if (!userId) {
+          console.warn("Teacher user_id not found. Course creation may fail.")
+          toast.error("Teacher account not linked to user system. Please contact support to link your account.")
+          // Don't return - let them try, but show the error
+        }
+
+        setTeacherUserId(userId)
       } catch (error) {
         console.error("Error fetching teacher:", error)
         router.push("/auth/login/teacher")
@@ -100,7 +112,49 @@ export default function CreateCoursePage() {
 
     setCreating(true)
     try {
-      const { data: courseData, error } = await supabase
+      // First, ensure the teacher has a user_profiles entry with user_type = 'teacher'
+      const { data: existingProfile } = await supabase
+        .from("user_profiles")
+        .select("user_id, user_type")
+        .eq("user_id", teacherUserId)
+        .single()
+
+      if (!existingProfile) {
+        // Create user_profiles entry if it doesn't exist
+        const { error: profileError } = await supabase
+          .from("user_profiles")
+          .insert([
+            {
+              user_id: teacherUserId,
+              email: teacher?.email || null,
+              name: teacher?.full_name || null,
+              user_type: "teacher",
+            },
+          ])
+
+        if (profileError) {
+          console.error("Error creating user profile:", profileError)
+          throw new Error("Failed to set up teacher profile. Please contact support.")
+        }
+      } else if (existingProfile.user_type !== "teacher") {
+        // Update user_type to teacher if it's not already set
+        const { error: updateError } = await supabase
+          .from("user_profiles")
+          .update({ user_type: "teacher" })
+          .eq("user_id", teacherUserId)
+
+        if (updateError) {
+          console.error("Error updating user profile:", updateError)
+          throw new Error("Failed to update teacher profile. Please contact support.")
+        }
+      }
+
+      // Try to create the course via API route (which can use service role if needed)
+      // First try direct insert, if that fails, use API route
+      let courseData
+      let courseError
+
+      const { data: directCourseData, error: directError } = await supabase
         .from("courses_catalog")
         .insert([
           {
@@ -115,13 +169,41 @@ export default function CreateCoursePage() {
         .select()
         .single()
 
-      if (error) throw error
+      if (directError) {
+        // If direct insert fails (likely RLS issue), try API route
+        console.warn("Direct insert failed, trying API route:", directError)
+        
+        const apiResponse = await fetch("/api/teacher/courses/create", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            title: title.trim(),
+            difficulty,
+            content: content.trim(),
+            teacherEmail: teacher?.email || "",
+            teacherName: teacher?.full_name || "",
+          }),
+        })
+
+        const apiData = await apiResponse.json()
+
+        if (!apiResponse.ok) {
+          throw new Error(apiData.error || "Failed to create course via API")
+        }
+
+        courseData = apiData.course
+      } else {
+        courseData = directCourseData
+      }
 
       toast.success("Course created successfully!")
       router.push(`/dashboard/teacher/courses/${courseData.id}`)
     } catch (error: any) {
       console.error("Error creating course:", error)
-      toast.error(error.message || "Failed to create course")
+      console.error("Error stack:", error.stack)
+      toast.error(error.message || "Failed to create course. Please check the console for details.")
     } finally {
       setCreating(false)
     }

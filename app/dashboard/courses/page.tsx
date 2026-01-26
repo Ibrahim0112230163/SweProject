@@ -224,21 +224,80 @@ export default function CoursesPage() {
         }
       }
 
-      // Create enrollment request
-      const { error } = await supabase.from("course_enrollment_requests").insert([
-        {
-          course_id: courseId,
-          student_id: user.id,
-          status: "pending",
-        },
-      ])
+      // Ensure user has user_type = 'student' in user_profiles
+      const { data: userProfile } = await supabase
+        .from("user_profiles")
+        .select("user_id, user_type")
+        .eq("user_id", user.id)
+        .single()
 
-      if (error) throw error
+      if (!userProfile) {
+        // Create user_profiles entry if it doesn't exist
+        const { error: profileError } = await supabase
+          .from("user_profiles")
+          .insert([
+            {
+              user_id: user.id,
+              email: user.email || null,
+              name: user.user_metadata?.name || null,
+              user_type: "student",
+            },
+          ])
+
+        if (profileError) {
+          console.error("Error creating user profile:", profileError)
+          throw new Error("Failed to set up student profile. Please contact support.")
+        }
+      } else if (userProfile.user_type !== "student") {
+        // Update user_type to student if it's not already set
+        const { error: updateError } = await supabase
+          .from("user_profiles")
+          .update({ user_type: "student" })
+          .eq("user_id", user.id)
+
+        if (updateError) {
+          console.error("Error updating user profile:", updateError)
+          throw new Error("Failed to update student profile. Please contact support.")
+        }
+      }
+
+      // Create enrollment request
+      const { data: requestData, error } = await supabase
+        .from("course_enrollment_requests")
+        .insert([
+          {
+            course_id: courseId,
+            student_id: user.id,
+            status: "pending",
+          },
+        ])
+        .select()
+        .single()
+
+      if (error) {
+        console.error("Full error object:", JSON.stringify(error, null, 2))
+        console.error("Error code:", error.code)
+        console.error("Error message:", error.message)
+        console.error("Error details:", error.details)
+        console.error("Error hint:", error.hint)
+
+        // Provide more specific error messages
+        if (error.code === "42501" || error.message?.includes("permission denied") || error.message?.includes("policy")) {
+          throw new Error("Permission denied. Please ensure your account is set up as a student.")
+        } else if (error.code === "23505") {
+          // Unique constraint violation - request already exists
+          throw new Error("You already have an enrollment request for this course.")
+        } else {
+          throw new Error(error.message || `Failed to submit enrollment request. Error code: ${error.code || "unknown"}`)
+        }
+      }
 
       toast.success("Enrollment request submitted! The teacher will review your request.")
     } catch (error: any) {
       console.error("Error requesting enrollment:", error)
-      toast.error(error.message || "Failed to submit enrollment request. Please try again.")
+      console.error("Error stack:", error.stack)
+      console.error("Full error:", JSON.stringify(error, null, 2))
+      toast.error(error.message || "Failed to submit enrollment request. Please check the console for details.")
     } finally {
       setRequesting(null)
     }
