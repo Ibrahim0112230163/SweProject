@@ -112,28 +112,47 @@ export default function CourseChat({ courseId, isCreator }: CourseChatProps) {
 
   const fetchMessages = async () => {
     try {
-      const { data: messagesData, error } = await supabase
+      // 1. Fetch messages without the join that was causing errors
+      const { data: messagesData, error: messagesError } = await supabase
         .from("course_chat_messages")
-        .select(`
-          *,
-          user_profiles!course_chat_messages_user_id_fkey(name, avatar_url)
-        `)
+        .select("*")
         .eq("course_id", courseId)
         .order("created_at", { ascending: true })
 
-      if (error) throw error
+      if (messagesError) throw messagesError
 
-      if (messagesData) {
+      if (messagesData && messagesData.length > 0) {
+        // 2. Fetch user profiles for the senders
+        const userIds = Array.from(new Set(messagesData.map((msg) => msg.user_id)))
+        const { data: profiles, error: profilesError } = await supabase
+          .from("user_profiles")
+          .select("user_id, name, avatar_url")
+          .in("user_id", userIds)
+
+        if (profilesError) throw profilesError
+
+        // 3. Map profiles to user_id for easy lookup
+        const profileMap: Record<string, { name: string; avatar_url: string }> = {}
+        profiles?.forEach((profile) => {
+          profileMap[profile.user_id] = {
+            name: profile.name,
+            avatar_url: profile.avatar_url,
+          }
+        })
+
+        // 4. Combine data
         const formattedMessages = messagesData.map((msg: any) => ({
           id: msg.id,
           course_id: msg.course_id,
           user_id: msg.user_id,
           message: msg.message,
           created_at: msg.created_at,
-          user_name: msg.user_profiles?.name || "Unknown",
-          user_avatar: msg.user_profiles?.avatar_url || null,
+          user_name: profileMap[msg.user_id]?.name || "Unknown",
+          user_avatar: profileMap[msg.user_id]?.avatar_url || null,
         }))
         setMessages(formattedMessages)
+      } else {
+        setMessages([])
       }
     } catch (error) {
       console.error("Error fetching messages:", error)
@@ -142,18 +161,34 @@ export default function CourseChat({ courseId, isCreator }: CourseChatProps) {
 
   const fetchFiles = async () => {
     try {
-      const { data: filesData, error } = await supabase
+      // 1. Fetch files without the join
+      const { data: filesData, error: filesError } = await supabase
         .from("course_chat_files")
-        .select(`
-          *,
-          user_profiles!course_chat_files_user_id_fkey(name)
-        `)
+        .select("*")
         .eq("course_id", courseId)
         .order("uploaded_at", { ascending: true })
 
-      if (error) throw error
+      if (filesError) throw filesError
 
-      if (filesData) {
+      if (filesData && filesData.length > 0) {
+        // 2. Fetch user profiles for the uploaders
+        const userIds = Array.from(new Set(filesData.map((file) => file.user_id)))
+        const { data: profiles, error: profilesError } = await supabase
+          .from("user_profiles")
+          .select("user_id, name")
+          .in("user_id", userIds)
+
+        if (profilesError) throw profilesError
+
+        // 3. Map profiles
+        const profileMap: Record<string, { name: string }> = {}
+        profiles?.forEach((profile) => {
+          profileMap[profile.user_id] = {
+            name: profile.name,
+          }
+        })
+
+        // 4. Combine data
         const formattedFiles = filesData.map((file: any) => ({
           id: file.id,
           course_id: file.course_id,
@@ -164,9 +199,11 @@ export default function CourseChat({ courseId, isCreator }: CourseChatProps) {
           file_size: file.file_size,
           file_type: file.file_type,
           uploaded_at: file.uploaded_at,
-          user_name: file.user_profiles?.name || "Unknown",
+          user_name: profileMap[file.user_id]?.name || "Unknown",
         }))
         setFiles(formattedFiles)
+      } else {
+        setFiles([])
       }
     } catch (error) {
       console.error("Error fetching files:", error)
