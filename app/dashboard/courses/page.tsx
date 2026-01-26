@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { BookOpen, Clock, TrendingUp } from "lucide-react"
 import { Loader2 } from "lucide-react"
+import { toast } from "sonner"
 
 interface UserProfile {
   id: string
@@ -16,6 +17,7 @@ interface UserProfile {
   email: string | null
   avatar_url: string | null
   profile_completion_percentage: number
+  user_type?: string | null
 }
 
 interface Course {
@@ -31,6 +33,29 @@ interface Enrollment {
   id: string
   course_id: string
   progress_percentage: number
+  enrollment_status: string
+}
+
+interface EnrollmentRequest {
+  id: string
+  course_id: string
+  student_id: string
+  status: "pending" | "approved" | "rejected"
+  requested_at: string
+  student_name?: string
+  student_email?: string
+}
+
+interface Course {
+  id: string
+  title: string
+  description: string | null
+  difficulty: "beginner" | "medium" | "hard"
+  thumbnail_gradient: string | null
+  estimated_duration_hours: number | null
+  creator_id?: string | null
+  max_students?: number | null
+  enrollment_count?: number
 }
 
 export default function CoursesPage() {
@@ -39,8 +64,10 @@ export default function CoursesPage() {
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null)
   const [courses, setCourses] = useState<Course[]>([])
   const [enrollments, setEnrollments] = useState<Enrollment[]>([])
+  const [enrollmentRequests, setEnrollmentRequests] = useState<EnrollmentRequest[]>([])
   const [loading, setLoading] = useState(true)
-  const [enrolling, setEnrolling] = useState<string | null>(null)
+  const [requesting, setRequesting] = useState<string | null>(null)
+  const [isTeacher, setIsTeacher] = useState(false)
 
   useEffect(() => {
     const fetchData = async () => {
@@ -62,28 +89,94 @@ export default function CoursesPage() {
           .single()
 
         setUserProfile(profileData)
+        setIsTeacher(profileData?.user_type === "teacher")
 
-        // Fetch all courses
+        // Fetch all active courses
         const { data: coursesData, error: coursesError } = await supabase
           .from("courses_catalog")
           .select("*")
-          .order("title", { ascending: true })
+          .eq("status", "active")
+          .order("created_at", { ascending: false })
 
         if (coursesError) {
           console.error("Courses fetch error:", coursesError.message)
         }
-        setCourses(coursesData || [])
+
+        // Get enrollment counts for each course
+        if (coursesData) {
+          const coursesWithCounts = await Promise.all(
+            coursesData.map(async (course) => {
+              const { count } = await supabase
+                .from("course_enrollments")
+                .select("*", { count: "exact", head: true })
+                .eq("course_id", course.id)
+                .eq("enrollment_status", "enrolled")
+
+              return {
+                ...course,
+                enrollment_count: count || 0,
+              }
+            })
+          )
+          setCourses(coursesWithCounts)
+        } else {
+          setCourses([])
+        }
 
         // Fetch user enrollments
         const { data: enrollmentsData, error: enrollmentsError } = await supabase
           .from("course_enrollments")
           .select("*")
           .eq("user_id", user.id)
+          .eq("enrollment_status", "enrolled")
 
         if (enrollmentsError) {
           console.error("Enrollments fetch error:", enrollmentsError.message)
         }
         setEnrollments(enrollmentsData || [])
+
+        // If teacher, fetch enrollment requests for their courses
+        if (profileData?.user_type === "teacher") {
+          // First get teacher's course IDs
+          const { data: teacherCourses } = await supabase
+            .from("courses_catalog")
+            .select("id")
+            .eq("creator_id", user.id)
+
+          if (teacherCourses && teacherCourses.length > 0) {
+            const courseIds = teacherCourses.map((c) => c.id)
+            const { data: requestsData } = await supabase
+              .from("course_enrollment_requests")
+              .select("*")
+              .in("course_id", courseIds)
+              .eq("status", "pending")
+              .order("requested_at", { ascending: false })
+
+            if (requestsData) {
+              // Fetch user profiles for each request
+              const formattedRequests = await Promise.all(
+                requestsData.map(async (req) => {
+                  const { data: profile } = await supabase
+                    .from("user_profiles")
+                    .select("name, email")
+                    .eq("user_id", req.student_id)
+                    .single()
+                  
+                  return {
+                    id: req.id,
+                    course_id: req.course_id,
+                    student_id: req.student_id,
+                    status: req.status,
+                    requested_at: req.requested_at,
+                    student_name: profile?.name || "Unknown",
+                    student_email: profile?.email || "",
+                  }
+                })
+              )
+              setEnrollmentRequests(formattedRequests)
+            }
+          }
+        }
       } catch (error) {
         console.error("Error fetching data:", error instanceof Error ? error.message : error)
       } finally {
@@ -94,8 +187,8 @@ export default function CoursesPage() {
     fetchData()
   }, [supabase, router])
 
-  const handleEnroll = async (courseId: string) => {
-    setEnrolling(courseId)
+  const handleRequestEnrollment = async (courseId: string) => {
+    setRequesting(courseId)
     try {
       const {
         data: { user },
@@ -113,24 +206,41 @@ export default function CoursesPage() {
         return
       }
 
-      // Create enrollment
-      const { error } = await supabase.from("course_enrollments").insert([
+      // Check if request already exists
+      const { data: existingRequest } = await supabase
+        .from("course_enrollment_requests")
+        .select("*")
+        .eq("course_id", courseId)
+        .eq("student_id", user.id)
+        .single()
+
+      if (existingRequest) {
+        if (existingRequest.status === "pending") {
+          toast.info("You already have a pending enrollment request for this course.")
+          return
+        } else if (existingRequest.status === "approved") {
+          router.push(`/dashboard/courses/${courseId}`)
+          return
+        }
+      }
+
+      // Create enrollment request
+      const { error } = await supabase.from("course_enrollment_requests").insert([
         {
-          user_id: user.id,
           course_id: courseId,
-          progress_percentage: 0,
+          student_id: user.id,
+          status: "pending",
         },
       ])
 
       if (error) throw error
 
-      // Navigate to course page
-      router.push(`/dashboard/courses/${courseId}`)
-    } catch (error) {
-      console.error("Error enrolling in course:", error)
-      alert("Failed to enroll in course. Please try again.")
+      toast.success("Enrollment request submitted! The teacher will review your request.")
+    } catch (error: any) {
+      console.error("Error requesting enrollment:", error)
+      toast.error(error.message || "Failed to submit enrollment request. Please try again.")
     } finally {
-      setEnrolling(null)
+      setRequesting(null)
     }
   }
 
@@ -160,6 +270,100 @@ export default function CoursesPage() {
     return enrollment?.progress_percentage || 0
   }
 
+  const refreshEnrollmentRequests = async () => {
+    if (!isTeacher) return
+
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
+    if (!user) return
+
+    const { data: teacherCourses } = await supabase
+      .from("courses_catalog")
+      .select("id")
+      .eq("creator_id", user.id)
+
+    if (teacherCourses && teacherCourses.length > 0) {
+      const courseIds = teacherCourses.map((c) => c.id)
+      const { data: requestsData } = await supabase
+        .from("course_enrollment_requests")
+        .select("*")
+        .in("course_id", courseIds)
+        .eq("status", "pending")
+        .order("requested_at", { ascending: false })
+
+      if (requestsData) {
+        // Fetch user profiles for each request
+        const formattedRequests = await Promise.all(
+          requestsData.map(async (req) => {
+            const { data: profile } = await supabase
+              .from("user_profiles")
+              .select("name, email")
+              .eq("user_id", req.student_id)
+              .single()
+
+            return {
+              id: req.id,
+              course_id: req.course_id,
+              student_id: req.student_id,
+              status: req.status,
+              requested_at: req.requested_at,
+              student_name: profile?.name || "Unknown",
+              student_email: profile?.email || "",
+            }
+          })
+        )
+        setEnrollmentRequests(formattedRequests)
+      }
+    }
+  }
+
+  const handleApproveRequest = async (requestId: string, courseId: string) => {
+    try {
+      const { error } = await supabase
+        .from("course_enrollment_requests")
+        .update({
+          status: "approved",
+          responded_at: new Date().toISOString(),
+        })
+        .eq("id", requestId)
+
+      if (error) throw error
+
+      toast.success("Enrollment request approved!")
+      await refreshEnrollmentRequests()
+    } catch (error: any) {
+      console.error("Error approving request:", error)
+      toast.error(error.message || "Failed to approve request")
+    }
+  }
+
+  const handleRejectRequest = async (requestId: string) => {
+    try {
+      const { error } = await supabase
+        .from("course_enrollment_requests")
+        .update({
+          status: "rejected",
+          responded_at: new Date().toISOString(),
+        })
+        .eq("id", requestId)
+
+      if (error) throw error
+
+      toast.success("Enrollment request rejected")
+      await refreshEnrollmentRequests()
+    } catch (error: any) {
+      console.error("Error rejecting request:", error)
+      toast.error(error.message || "Failed to reject request")
+    }
+  }
+
+  const isCourseFull = (course: Course) => {
+    const enrollmentCount = course.enrollment_count || 0
+    const maxStudents = course.max_students || 25
+    return enrollmentCount >= maxStudents
+  }
+
   if (loading) {
     return (
       <DashboardLayout userProfile={userProfile}>
@@ -180,9 +384,60 @@ export default function CoursesPage() {
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-3xl font-bold text-slate-900">Courses</h1>
-            <p className="text-slate-600 mt-1">Explore and enroll in courses to enhance your skills</p>
+            <p className="text-slate-600 mt-1">
+              {isTeacher ? "Manage your courses and enrollment requests" : "Explore and request enrollment in courses"}
+            </p>
           </div>
+          {isTeacher && (
+            <Button
+              onClick={() => router.push("/dashboard/courses/create")}
+              className="bg-gradient-to-r from-teal-500 to-cyan-600 hover:from-teal-600 hover:to-cyan-700 text-white"
+            >
+              Create Course
+            </Button>
+          )}
         </div>
+
+        {/* Enrollment Requests for Teachers */}
+        {isTeacher && enrollmentRequests.length > 0 && (
+          <Card className="border-orange-200 bg-orange-50">
+            <CardHeader>
+              <CardTitle className="text-lg">Pending Enrollment Requests ({enrollmentRequests.length})</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-3">
+                {enrollmentRequests.map((request) => {
+                  const course = courses.find((c) => c.id === request.course_id)
+                  return (
+                    <div key={request.id} className="flex items-center justify-between p-3 bg-white rounded-lg border border-orange-200">
+                      <div>
+                        <p className="font-medium">{request.student_name}</p>
+                        <p className="text-sm text-slate-600">{request.student_email}</p>
+                        <p className="text-sm text-slate-500">Course: {course?.title || "Unknown"}</p>
+                      </div>
+                      <div className="flex gap-2">
+                        <Button
+                          size="sm"
+                          onClick={() => handleApproveRequest(request.id, request.course_id)}
+                          className="bg-green-500 hover:bg-green-600 text-white"
+                        >
+                          Approve
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="destructive"
+                          onClick={() => handleRejectRequest(request.id)}
+                        >
+                          Reject
+                        </Button>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Courses Grid */}
         {courses.length > 0 ? (
@@ -240,29 +495,50 @@ export default function CoursesPage() {
                       </div>
                     )}
 
+                    {/* Course Info */}
+                    <div className="text-xs text-slate-500">
+                      {course.enrollment_count || 0} / {course.max_students || 25} students enrolled
+                    </div>
+
                     {/* Action Button */}
-                    <Button
-                      onClick={() => (enrolled ? router.push(`/dashboard/courses/${course.id}`) : handleEnroll(course.id))}
-                      disabled={enrolling === course.id}
-                      className="w-full bg-gradient-to-r from-teal-500 to-cyan-600 hover:from-teal-600 hover:to-cyan-700 text-white"
-                    >
-                      {enrolling === course.id ? (
-                        <>
-                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                          Enrolling...
-                        </>
-                      ) : enrolled ? (
-                        <>
-                          <TrendingUp className="mr-2 h-4 w-4" />
-                          Continue Learning
-                        </>
-                      ) : (
-                        <>
-                          <BookOpen className="mr-2 h-4 w-4" />
-                          Enroll Now
-                        </>
-                      )}
-                    </Button>
+                    {isTeacher && course.creator_id === userProfile?.id ? (
+                      <Button
+                        onClick={() => router.push(`/dashboard/courses/${course.id}`)}
+                        className="w-full bg-gradient-to-r from-teal-500 to-cyan-600 hover:from-teal-600 hover:to-cyan-700 text-white"
+                      >
+                        Manage Course
+                      </Button>
+                    ) : enrolled ? (
+                      <Button
+                        onClick={() => router.push(`/dashboard/courses/${course.id}`)}
+                        className="w-full bg-gradient-to-r from-teal-500 to-cyan-600 hover:from-teal-600 hover:to-cyan-700 text-white"
+                      >
+                        <TrendingUp className="mr-2 h-4 w-4" />
+                        Continue Learning
+                      </Button>
+                    ) : isCourseFull(course) ? (
+                      <Button disabled className="w-full bg-slate-300 text-slate-600 cursor-not-allowed">
+                        Course Full
+                      </Button>
+                    ) : (
+                      <Button
+                        onClick={() => handleRequestEnrollment(course.id)}
+                        disabled={requesting === course.id}
+                        className="w-full bg-gradient-to-r from-teal-500 to-cyan-600 hover:from-teal-600 hover:to-cyan-700 text-white"
+                      >
+                        {requesting === course.id ? (
+                          <>
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            Submitting...
+                          </>
+                        ) : (
+                          <>
+                            <BookOpen className="mr-2 h-4 w-4" />
+                            Request Enrollment
+                          </>
+                        )}
+                      </Button>
+                    )}
                   </CardContent>
                 </Card>
               )

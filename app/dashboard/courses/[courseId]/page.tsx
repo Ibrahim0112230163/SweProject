@@ -7,9 +7,10 @@ import DashboardLayout from "@/components/dashboard/layout"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { BookOpen, Clock, CheckCircle2, Circle, ArrowLeft, Play } from "lucide-react"
+import { BookOpen, Clock, CheckCircle2, Circle, ArrowLeft, Play, MessageSquare, Users } from "lucide-react"
 import { Loader2 } from "lucide-react"
-import { generateCourseModules } from "@/lib/course-content"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import CourseChat from "@/components/courses/course-chat"
 
 interface UserProfile {
   id: string
@@ -23,9 +24,12 @@ interface Course {
   id: string
   title: string
   description: string | null
+  content: string | null
   difficulty: "beginner" | "medium" | "hard"
   thumbnail_gradient: string | null
   estimated_duration_hours: number | null
+  creator_id: string | null
+  max_students: number | null
 }
 
 interface Module {
@@ -52,6 +56,8 @@ export default function CourseDetailPage() {
   const [moduleProgress, setModuleProgress] = useState<Map<string, boolean>>(new Map())
   const [loading, setLoading] = useState(true)
   const [enrollmentId, setEnrollmentId] = useState<string | null>(null)
+  const [isCreator, setIsCreator] = useState(false)
+  const [activeTab, setActiveTab] = useState("content")
 
   useEffect(() => {
     const fetchData = async () => {
@@ -84,70 +90,57 @@ export default function CourseDetailPage() {
         if (courseError) throw courseError
         setCourse(courseData)
 
-        // Check enrollment
+        // Check if user is teacher (creator) or enrolled student
+        const userIsCreator = courseData.creator_id === user.id
+        setIsCreator(userIsCreator)
         const { data: enrollmentData, error: enrollmentError } = await supabase
           .from("course_enrollments")
           .select("*")
           .eq("user_id", user.id)
           .eq("course_id", courseId)
+          .eq("enrollment_status", "enrolled")
           .single()
 
-        if (enrollmentError && enrollmentError.code !== "PGRST116") {
-          throw enrollmentError
-        }
-
-        if (!enrollmentData) {
-          // Not enrolled, redirect to courses page
+        if (!userIsCreator && (!enrollmentData || enrollmentError?.code === "PGRST116")) {
+          // Not creator and not enrolled, redirect to courses page
           router.push("/dashboard/courses")
           return
         }
 
-        setEnrollmentId(enrollmentData.id)
+        if (enrollmentData) {
+          setEnrollmentId(enrollmentData.id)
+        }
 
-        // Fetch modules
+        // Fetch modules (optional - for backward compatibility)
         const { data: modulesData, error: modulesError } = await supabase
           .from("course_modules")
           .select("*")
           .eq("course_id", courseId)
           .order("module_number", { ascending: true })
 
-        if (modulesError) throw modulesError
-
-        // If no modules exist, create them
-        if (!modulesData || modulesData.length === 0) {
-          const generatedModules = generateCourseModules(courseData.title)
-          const modulesToInsert = generatedModules.map((mod, index) => ({
-            course_id: courseId,
-            module_number: index + 1,
-            title: mod.title,
-            description: null,
-            content: mod.content,
-          }))
-
-          const { data: insertedModules, error: insertError } = await supabase
-            .from("course_modules")
-            .insert(modulesToInsert)
-            .select()
-
-          if (insertError) throw insertError
-          setModules(insertedModules || [])
-        } else {
-          setModules(modulesData)
+        if (modulesError) {
+          console.warn("Error fetching modules:", modulesError)
         }
 
-        // Fetch module progress
-        const { data: progressData, error: progressError } = await supabase
-          .from("module_progress")
-          .select("module_id, is_completed")
-          .eq("enrollment_id", enrollmentData.id)
+        setModules(modulesData || [])
 
-        if (progressError) throw progressError
+        // Fetch module progress (only if enrolled)
+        if (enrollmentData) {
+          const { data: progressData, error: progressError } = await supabase
+            .from("module_progress")
+            .select("module_id, is_completed")
+            .eq("enrollment_id", enrollmentData.id)
 
-        const progressMap = new Map<string, boolean>()
-        progressData?.forEach((p: ModuleProgress) => {
-          progressMap.set(p.module_id, p.is_completed)
-        })
-        setModuleProgress(progressMap)
+          if (progressError) {
+            console.warn("Error fetching progress:", progressError)
+          }
+
+          const progressMap = new Map<string, boolean>()
+          progressData?.forEach((p: ModuleProgress) => {
+            progressMap.set(p.module_id, p.is_completed)
+          })
+          setModuleProgress(progressMap)
+        }
       } catch (error) {
         console.error("Error fetching course data:", error)
       } finally {
@@ -250,83 +243,134 @@ export default function CourseDetailPage() {
               </div>
             </div>
 
-            {/* Progress Bar */}
-            <div className="space-y-2">
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-slate-600">Course Progress</span>
-                <span className="text-teal-600 font-medium">
-                  {completedModules} of {totalModules} modules completed ({progressPercentage}%)
-                </span>
-              </div>
-              <div className="w-full bg-slate-200 rounded-full h-3">
-                <div
-                  className="bg-gradient-to-r from-teal-500 to-cyan-500 h-3 rounded-full transition-all duration-300"
-                  style={{ width: `${progressPercentage}%` }}
-                ></div>
-              </div>
+            {/* Course Info */}
+            <div className="flex items-center gap-6 text-sm text-slate-600">
+              {course.max_students && (
+                <div className="flex items-center gap-1">
+                  <Users className="w-4 h-4" />
+                  <span>Max {course.max_students} students</span>
+                </div>
+              )}
             </div>
+
+            {/* Progress Bar (only for enrolled students) */}
+            {enrollmentId && totalModules > 0 && (
+              <div className="space-y-2">
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-slate-600">Course Progress</span>
+                  <span className="text-teal-600 font-medium">
+                    {completedModules} of {totalModules} modules completed ({progressPercentage}%)
+                  </span>
+                </div>
+                <div className="w-full bg-slate-200 rounded-full h-3">
+                  <div
+                    className="bg-gradient-to-r from-teal-500 to-cyan-500 h-3 rounded-full transition-all duration-300"
+                    style={{ width: `${progressPercentage}%` }}
+                  ></div>
+                </div>
+              </div>
+            )}
           </CardContent>
         </Card>
 
-        {/* Modules List */}
-        <div>
-          <h2 className="text-2xl font-bold text-slate-900 mb-4">Course Modules</h2>
-          <div className="space-y-3">
-            {modules.map((module, index) => {
-              const isCompleted = moduleProgress.get(module.id) || false
-              return (
-                <Card
-                  key={module.id}
-                  className="hover:shadow-md transition-shadow duration-200 border-slate-200 cursor-pointer"
-                  onClick={() => handleModuleClick(module.id, module.module_number)}
-                >
-                  <CardContent className="p-6">
-                    <div className="flex items-center gap-4">
-                      <div className="flex-shrink-0">
-                        {isCompleted ? (
-                          <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center">
-                            <CheckCircle2 className="w-6 h-6 text-green-600" />
+        {/* Tabs: Content and Discussion */}
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+          <TabsList className="grid w-full max-w-md grid-cols-2">
+            <TabsTrigger value="content">Course Content</TabsTrigger>
+            <TabsTrigger value="discussion">
+              <MessageSquare className="w-4 h-4 mr-2" />
+              Discussion
+            </TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="content" className="space-y-6">
+            {/* Course Content */}
+            {course.content ? (
+              <Card className="border-slate-200">
+                <CardContent className="p-6">
+                  <div className="prose prose-slate max-w-none whitespace-pre-wrap">
+                    {course.content}
+                  </div>
+                </CardContent>
+              </Card>
+            ) : (
+              <Card className="border-slate-200">
+                <CardContent className="py-20 text-center">
+                  <BookOpen className="w-16 h-16 text-slate-300 mx-auto mb-4" />
+                  <h3 className="text-lg font-medium text-slate-900 mb-2">No content available</h3>
+                  <p className="text-slate-500">Course content will be displayed here.</p>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Modules List (if any) */}
+            {modules.length > 0 && (
+              <div>
+                <h2 className="text-2xl font-bold text-slate-900 mb-4">Course Modules</h2>
+                <div className="space-y-3">
+                  {modules.map((module) => {
+                    const isCompleted = moduleProgress.get(module.id) || false
+                    return (
+                      <Card
+                        key={module.id}
+                        className="hover:shadow-md transition-shadow duration-200 border-slate-200 cursor-pointer"
+                        onClick={() => handleModuleClick(module.id, module.module_number)}
+                      >
+                        <CardContent className="p-6">
+                          <div className="flex items-center gap-4">
+                            <div className="flex-shrink-0">
+                              {isCompleted ? (
+                                <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center">
+                                  <CheckCircle2 className="w-6 h-6 text-green-600" />
+                                </div>
+                              ) : (
+                                <div className="w-12 h-12 bg-slate-100 rounded-full flex items-center justify-center">
+                                  <Circle className="w-6 h-6 text-slate-400" />
+                                </div>
+                              )}
+                            </div>
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2 mb-1">
+                                <span className="text-sm font-medium text-teal-600">Module {module.module_number}</span>
+                                {isCompleted && (
+                                  <Badge variant="outline" className="text-xs bg-green-50 text-green-700 border-green-200">
+                                    Completed
+                                  </Badge>
+                                )}
+                              </div>
+                              <h3 className="text-lg font-semibold text-slate-900 mb-1">{module.title}</h3>
+                              {module.description && (
+                                <p className="text-sm text-slate-600 line-clamp-2">{module.description}</p>
+                              )}
+                            </div>
+                            <div className="flex-shrink-0">
+                              <Button
+                                variant="outline"
+                                className="flex items-center gap-2"
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  handleModuleClick(module.id, module.module_number)
+                                }}
+                              >
+                                <Play className="w-4 h-4" />
+                                {isCompleted ? "Review" : "Start"}
+                              </Button>
+                            </div>
                           </div>
-                        ) : (
-                          <div className="w-12 h-12 bg-slate-100 rounded-full flex items-center justify-center">
-                            <Circle className="w-6 h-6 text-slate-400" />
-                          </div>
-                        )}
-                      </div>
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-1">
-                          <span className="text-sm font-medium text-teal-600">Module {module.module_number}</span>
-                          {isCompleted && (
-                            <Badge variant="outline" className="text-xs bg-green-50 text-green-700 border-green-200">
-                              Completed
-                            </Badge>
-                          )}
-                        </div>
-                        <h3 className="text-lg font-semibold text-slate-900 mb-1">{module.title}</h3>
-                        {module.description && (
-                          <p className="text-sm text-slate-600 line-clamp-2">{module.description}</p>
-                        )}
-                      </div>
-                      <div className="flex-shrink-0">
-                        <Button
-                          variant="outline"
-                          className="flex items-center gap-2"
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            handleModuleClick(module.id, module.module_number)
-                          }}
-                        >
-                          <Play className="w-4 h-4" />
-                          {isCompleted ? "Review" : "Start"}
-                        </Button>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              )
-            })}
-          </div>
-        </div>
+                        </CardContent>
+                      </Card>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
+          </TabsContent>
+
+          <TabsContent value="discussion">
+            <CourseChat courseId={courseId} isCreator={isCreator} />
+          </TabsContent>
+        </Tabs>
+        </Tabs>
       </div>
     </DashboardLayout>
   )
