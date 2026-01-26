@@ -1,12 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { createClient } from '@/lib/supabase/server';
-// pdf-parse has broken ESM typings — use require safely
-// eslint-disable-next-line @typescript-eslint/no-var-requires
-const pdf = require('pdf-parse') as (
-    buffer: Buffer
-  ) => Promise<{ text: string }>;
-  
+// @ts-ignore
+import pdf from 'pdf-parse';
+
 // VERY IMPORTANT: pdf-parse requires Node runtime
 export const runtime = 'nodejs';
 
