@@ -370,7 +370,6 @@ export default function CourseDetailPage() {
             <CourseChat courseId={courseId} isCreator={isCreator} />
           </TabsContent>
         </Tabs>
-        </Tabs>
       </div>
     </DashboardLayout>
   )
