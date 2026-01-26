@@ -50,19 +50,21 @@ export default function QuickQuiz({ onBack }: QuickQuizProps) {
         }),
       })
 
+      const data = await response.json()
+      
       if (!response.ok) {
-        throw new Error("Failed to generate questions")
+        console.error("Quiz API error:", data)
+        throw new Error(data.error || "Failed to generate questions")
       }
 
-      const data = await response.json()
       setQuestions(data.questions)
       setCurrentQuestionIndex(0)
       setScore(0)
       setTimeLeft(30)
       setGameState("playing")
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error starting quiz:", error)
-      alert("Failed to start quiz. Please try again.")
+      alert(`Failed to start quiz: ${error.message || 'Please try again.'}`);
       setGameState("menu")
     }
   }
