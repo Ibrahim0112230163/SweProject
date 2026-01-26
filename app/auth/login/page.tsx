@@ -1,13 +1,12 @@
 "use client"
 
-import type React from "react"
-
-import { useState } from "react"
+import { useState, useRef, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import Link from "next/link"
+import { Eye, EyeOff } from "lucide-react"
 
 export default function LoginPage() {
   const router = useRouter()
@@ -16,6 +15,15 @@ export default function LoginPage() {
   const [password, setPassword] = useState("")
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
+  const [showPassword, setShowPassword] = useState(false)
+  const emailInputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    // Auto-focus on email field when component mounts
+    if (emailInputRef.current) {
+      emailInputRef.current.focus()
+    }
+  }, [])
 
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -23,7 +31,7 @@ export default function LoginPage() {
     setLoading(true)
 
     try {
-      const { error: signInError } = await supabase.auth.signInWithPassword({
+      const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
         email,
         password,
       })
@@ -33,9 +41,65 @@ export default function LoginPage() {
         return
       }
 
+      if (!signInData.user) {
+        setError("Failed to authenticate user")
+        return
+      }
+
+      // Check if profile exists (don't select user_type - it may not exist yet)
+      const { data: profile, error: profileError } = await supabase
+        .from("user_profiles")
+        .select("id, user_id")
+        .eq("user_id", signInData.user.id)
+        .single()
+
+      if (profileError) {
+        console.error("Error fetching profile:", {
+          message: profileError.message,
+          details: profileError.details,
+          hint: profileError.hint,
+          code: profileError.code,
+        })
+
+        // PGRST116 means no rows found - profile doesn't exist
+        if (profileError.code === "PGRST116") {
+          // Create profile for existing auth user
+          const { error: createError } = await supabase
+            .from("user_profiles")
+            .insert([
+              {
+                user_id: signInData.user.id,
+                email: signInData.user.email,
+                name: signInData.user.email?.split("@")[0] || "User",
+                profile_completion_percentage: 0,
+              },
+            ])
+
+          if (createError) {
+            console.error("Failed to create missing profile:", {
+              message: createError.message,
+              details: createError.details,
+              code: createError.code,
+            })
+            setError("Failed to set up your profile. Please contact support.")
+            return
+          }
+
+          // Profile created successfully, redirect to dashboard
+          router.push("/dashboard")
+          return
+        } else {
+          // Other database error
+          setError(`Database error: ${profileError.message}`)
+          return
+        }
+      }
+
+      // Profile exists - redirect to dashboard (user_type column may not exist yet)
       router.push("/dashboard")
     } catch (err) {
       setError("An unexpected error occurred")
+      console.error("Login error:", err)
     } finally {
       setLoading(false)
     }
@@ -61,31 +125,70 @@ export default function LoginPage() {
           <div>
             <label className="block text-sm font-medium text-slate-900 mb-2">Email</label>
             <Input
+              ref={emailInputRef}
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="you@example.com"
               required
               disabled={loading}
+              autoFocus
             />
           </div>
 
           <div>
             <label className="block text-sm font-medium text-slate-900 mb-2">Password</label>
-            <Input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="••••••••"
-              required
-              disabled={loading}
-            />
+            <div className="relative">
+              <Input
+                type={showPassword ? "text" : "password"}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="••••••••"
+                required
+                disabled={loading}
+                className="pr-10"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 focus:outline-none focus:text-slate-600 transition-colors"
+                disabled={loading}
+                aria-label={showPassword ? "Hide password" : "Show password"}
+              >
+                {showPassword ? (
+                  <EyeOff className="h-5 w-5" />
+                ) : (
+                  <Eye className="h-5 w-5" />
+                )}
+              </button>
+            </div>
           </div>
 
           <Button type="submit" className="w-full bg-teal-500 hover:bg-teal-600 text-white" disabled={loading}>
             {loading ? "Signing in..." : "Sign In"}
           </Button>
         </form>
+
+        <div className="mt-6 space-y-4">
+          <div className="relative">
+            <div className="absolute inset-0 flex items-center">
+              <span className="w-full border-t border-slate-200"></span>
+            </div>
+            <div className="relative flex justify-center text-xs uppercase">
+              <span className="bg-white px-2 text-slate-500">Or</span>
+            </div>
+          </div>
+          
+          <Link href="/auth/login/teacher">
+            <Button 
+              type="button" 
+              variant="outline" 
+              className="w-full border-slate-300 text-slate-700 hover:bg-slate-50"
+            >
+              Login as Teacher
+            </Button>
+          </Link>
+        </div>
 
         <p className="text-center text-slate-600 mt-6">
           Don't have an account?{" "}

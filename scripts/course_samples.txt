@@ -1,0 +1,100 @@
+INSERT INTO courses_catalog (
+  title,
+  description,
+  difficulty,
+  thumbnail_gradient,
+  estimated_duration_hours
+)
+VALUES
+(
+  'Full Stack Web Development',
+  'Learn modern full stack web development using React, Next.js, Node.js, and databases. Build real-world applications from scratch.',
+  'medium',
+  'from-indigo-500 to-purple-500',
+  120
+),
+(
+  'Data Science & Machine Learning',
+  'A comprehensive introduction to data analysis, machine learning, and AI using Python. Covers both theory and hands-on projects.',
+  'hard',
+  'from-emerald-500 to-teal-500',
+  150
+),
+(
+  'UI/UX Design Fundamentals',
+  'Learn the principles of user interface and user experience design. Focus on design thinking, wireframing, and usability testing.',
+  'beginner',
+  'from-pink-500 to-rose-500',
+  60
+);
+
+INSERT INTO course_modules (
+  course_id,
+  module_number,
+  title,
+  description,
+  content
+)
+SELECT
+  id,
+  m.module_number,
+  m.title,
+  m.description,
+  m.content
+FROM courses_catalog,
+LATERAL (
+  VALUES
+    (1, 'Introduction to Web Development', 'Overview of the web and how modern web apps work.', 'HTML, CSS, JavaScript basics and how the web works.'),
+    (2, 'Frontend Development with React', 'Building interactive UIs using React.', 'Components, hooks, state management, and routing.'),
+    (3, 'Backend Development with Node.js', 'Creating APIs and server-side logic.', 'Express.js, REST APIs, authentication, and databases.'),
+    (4, 'Full Stack with Next.js', 'Combining frontend and backend using Next.js.', 'SSR, API routes, authentication, and deployment.')
+) AS m(module_number, title, description, content)
+WHERE title = 'Full Stack Web Development';
+
+
+INSERT INTO course_modules (
+  course_id,
+  module_number,
+  title,
+  description,
+  content
+)
+SELECT
+  id,
+  m.module_number,
+  m.title,
+  m.description,
+  m.content
+FROM courses_catalog,
+LATERAL (
+  VALUES
+    (1, 'Python for Data Science', 'Python fundamentals for data analysis.', 'NumPy, Pandas, data manipulation, and visualization.'),
+    (2, 'Statistics and Probability', 'Mathematical foundations of data science.', 'Descriptive statistics, probability distributions, and hypothesis testing.'),
+    (3, 'Machine Learning Algorithms', 'Core ML concepts and models.', 'Regression, classification, clustering, and evaluation.'),
+    (4, 'Applied Machine Learning Projects', 'Hands-on ML projects.', 'Building end-to-end ML pipelines and real-world applications.')
+) AS m(module_number, title, description, content)
+WHERE title = 'Data Science & Machine Learning';
+
+
+INSERT INTO course_modules (
+  course_id,
+  module_number,
+  title,
+  description,
+  content
+)
+SELECT
+  id,
+  m.module_number,
+  m.title,
+  m.description,
+  m.content
+FROM courses_catalog,
+LATERAL (
+  VALUES
+    (1, 'Introduction to UI/UX Design', 'Understanding UI vs UX.', 'Design principles, usability, and accessibility.'),
+    (2, 'Design Thinking Process', 'User-centered design approach.', 'Empathize, define, ideate, prototype, test.'),
+    (3, 'Wireframing and Prototyping', 'Visualizing design ideas.', 'Low and high-fidelity wireframes using tools like Figma.'),
+    (4, 'Usability Testing', 'Evaluating user experience.', 'User testing methods, feedback analysis, and iteration.')
+) AS m(module_number, title, description, content)
+WHERE title = 'UI/UX Design Fundamentals';

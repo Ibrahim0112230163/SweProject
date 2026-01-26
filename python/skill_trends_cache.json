@@ -1,0 +1,26 @@
+{
+  "skills": [
+    {
+      "name": "Machine",
+      "demand": 100
+    },
+    {
+      "name": "Cloud",
+      "demand": 56
+    },
+    {
+      "name": "SQL",
+      "demand": 46
+    },
+    {
+      "name": "Python",
+      "demand": 44
+    },
+    {
+      "name": "React",
+      "demand": 40
+    }
+  ],
+  "last_updated": "2026-01-18T23:05:57.416128",
+  "source": "google_trends"
+}

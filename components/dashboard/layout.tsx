@@ -1,11 +1,11 @@
 "use client"
 
-import type React from "react"
 import { usePathname, useRouter } from "next/navigation"
 import Link from "next/link"
 import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
 import Footer from "@/components/footer"
+import { FloatingAIChat } from "@/components/ai-chat"
 
 interface UserProfile {
   id: string
@@ -34,6 +34,9 @@ export default function DashboardLayout({ userProfile, children }: DashboardLayo
   const navItems = [
     { label: "Dashboard", icon: "📊", href: "/dashboard", active: pathname === "/dashboard" },
     { label: "Profile", icon: "👤", href: "/dashboard/profile", active: pathname === "/dashboard/profile" },
+    { label: "Syllabus Analyzer", icon: "✨", href: "/dashboard/analyzer", active: pathname?.startsWith("/dashboard/analyzer") },
+    { label: "Knowledge Dungeon", icon: "🏰", href: "/dashboard/dungeon", active: pathname?.startsWith("/dashboard/dungeon") },
+    { label: "Challenges", icon: "🏆", href: "/dashboard/challenges", active: pathname?.startsWith("/dashboard/challenges") },
     { label: "Jobs", icon: "💼", href: "/dashboard/jobs", active: pathname === "/dashboard/jobs" },
     { label: "Courses", icon: "📚", href: "/dashboard/courses", active: pathname === "/dashboard/courses" },
     { label: "Projects", icon: "🎯", href: "/dashboard/projects", active: pathname === "/dashboard/projects" },
@@ -102,6 +105,7 @@ export default function DashboardLayout({ userProfile, children }: DashboardLayo
         <div className="p-8">{children}</div>
         <Footer />
       </main>
+      <FloatingAIChat />
     </div>
   )
 }
