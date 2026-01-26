@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import DungeonGame from "@/components/dashboard/dungeon-game"
+import QuickQuiz from "@/components/dashboard/quick-quiz"
 import DashboardLayout from "@/components/dashboard/layout"
 import { createClient } from "@/lib/supabase/client"
 import { useRouter } from "next/navigation"
@@ -19,6 +20,7 @@ import {
   BarChart3,
   Zap,
   Sparkles,
+  Gamepad2,
 } from "lucide-react"
 
 interface UserProfile {
@@ -61,6 +63,7 @@ export default function DungeonPage() {
   const [gameStats, setGameStats] = useState<GameStats | null>(null)
   const [dungeonRuns, setDungeonRuns] = useState<DungeonRun[]>([])
   const [selectedDifficulty, setSelectedDifficulty] = useState<"beginner" | "intermediate" | "advanced">("intermediate")
+  const [selectedGame, setSelectedGame] = useState<"selection" | "dungeon" | "quiz">("selection")
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -252,61 +255,184 @@ export default function DungeonPage() {
 
           {/* Play Tab */}
           <TabsContent value="play" className="space-y-4">
-            <Card className="border-slate-200 bg-white">
-              <CardHeader className="border-b border-slate-100">
-                <CardTitle className="text-slate-900">Choose Your Challenge</CardTitle>
-                <CardDescription className="text-slate-600">
-                  Select difficulty level before entering the dungeon
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="pt-6">
-                <div className="grid gap-3 md:grid-cols-3 mb-6">
-                  <button
-                    onClick={() => setSelectedDifficulty("beginner")}
-                    className={`p-4 rounded-lg border-2 transition-all text-left ${
-                      selectedDifficulty === "beginner"
-                        ? "border-teal-500 bg-gradient-to-br from-teal-50 to-cyan-50 shadow-md"
-                        : "border-slate-200 hover:border-slate-300 bg-white"
-                    }`}
-                  >
-                    <div className="font-semibold text-slate-900 mb-1">🌱 Beginner Dungeon</div>
-                    <div className="text-xs text-slate-600">
-                      5 rooms • Basic concepts • Perfect for starters
-                    </div>
-                  </button>
+            {selectedGame === "selection" && (
+              <div className="space-y-4">
+                <Card className="border-slate-200 bg-white">
+                  <CardHeader className="border-b border-slate-100">
+                    <CardTitle className="text-slate-900">Choose Your Game</CardTitle>
+                    <CardDescription className="text-slate-600">
+                      Select a game mode to start learning
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="pt-6">
+                    <div className="grid gap-4 md:grid-cols-2 mb-4">
+                      {/* Knowledge Dungeon Card */}
+                      <Card 
+                        className="border-2 border-slate-200 hover:border-teal-400 hover:shadow-lg transition-all cursor-pointer group"
+                        onClick={() => setSelectedGame("dungeon")}
+                      >
+                        <CardHeader>
+                          <div className="flex items-center gap-3 mb-2">
+                            <div className="w-12 h-12 bg-gradient-to-br from-teal-400 to-cyan-500 rounded-lg flex items-center justify-center text-white group-hover:scale-110 transition-transform">
+                              <Swords className="h-6 w-6" />
+                            </div>
+                            <div>
+                              <CardTitle className="text-lg text-slate-900">Knowledge Dungeon</CardTitle>
+                            </div>
+                          </div>
+                          <CardDescription className="text-slate-600">
+                            Explore dungeons with syllabus-based questions. Use potions for hints and clear all rooms to win!
+                          </CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                          <div className="flex flex-wrap gap-2 mb-3">
+                            <Badge className="bg-teal-100 text-teal-700 hover:bg-teal-200">
+                              <BookOpen className="w-3 h-3 mr-1" />
+                              Syllabus-Based
+                            </Badge>
+                            <Badge className="bg-purple-100 text-purple-700 hover:bg-purple-200">
+                              <Sparkles className="w-3 h-3 mr-1" />
+                              Hint System
+                            </Badge>
+                            <Badge className="bg-cyan-100 text-cyan-700 hover:bg-cyan-200">
+                              <Award className="w-3 h-3 mr-1" />
+                              5 Rooms
+                            </Badge>
+                          </div>
+                          <Button className="w-full bg-gradient-to-r from-teal-500 to-cyan-500 hover:from-teal-600 hover:to-cyan-600 text-white">
+                            Enter Dungeon
+                          </Button>
+                        </CardContent>
+                      </Card>
 
-                  <button
-                    onClick={() => setSelectedDifficulty("intermediate")}
-                    className={`p-4 rounded-lg border-2 transition-all text-left ${
-                      selectedDifficulty === "intermediate"
-                        ? "border-teal-500 bg-gradient-to-br from-teal-50 to-cyan-50 shadow-md"
-                        : "border-slate-200 hover:border-slate-300 bg-white"
-                    }`}
-                  >
-                    <div className="font-semibold text-slate-900 mb-1">⚡ Intermediate Dungeon</div>
-                    <div className="text-xs text-slate-600">
-                      5 rooms • Applied knowledge • Recommended
+                      {/* Quick Quiz Card */}
+                      <Card 
+                        className="border-2 border-slate-200 hover:border-cyan-400 hover:shadow-lg transition-all cursor-pointer group"
+                        onClick={() => setSelectedGame("quiz")}
+                      >
+                        <CardHeader>
+                          <div className="flex items-center gap-3 mb-2">
+                            <div className="w-12 h-12 bg-gradient-to-br from-cyan-400 to-teal-500 rounded-lg flex items-center justify-center text-white group-hover:scale-110 transition-transform">
+                              <Zap className="h-6 w-6" />
+                            </div>
+                            <div>
+                              <CardTitle className="text-lg text-slate-900">Quick Quiz</CardTitle>
+                            </div>
+                          </div>
+                          <CardDescription className="text-slate-600">
+                            Fast-paced CS questions with 30 seconds per question. Test your knowledge under pressure!
+                          </CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                          <div className="flex flex-wrap gap-2 mb-3">
+                            <Badge className="bg-cyan-100 text-cyan-700 hover:bg-cyan-200">
+                              <Zap className="w-3 h-3 mr-1" />
+                              Rapid-Fire
+                            </Badge>
+                            <Badge className="bg-orange-100 text-orange-700 hover:bg-orange-200">
+                              <Calendar className="w-3 h-3 mr-1" />
+                              30s Timer
+                            </Badge>
+                            <Badge className="bg-green-100 text-green-700 hover:bg-green-200">
+                              <Trophy className="w-3 h-3 mr-1" />
+                              Score Track
+                            </Badge>
+                          </div>
+                          <Button className="w-full bg-gradient-to-r from-cyan-500 to-teal-500 hover:from-cyan-600 hover:to-teal-600 text-white">
+                            Start Quiz
+                          </Button>
+                        </CardContent>
+                      </Card>
                     </div>
-                  </button>
 
-                  <button
-                    onClick={() => setSelectedDifficulty("advanced")}
-                    className={`p-4 rounded-lg border-2 transition-all text-left ${
-                      selectedDifficulty === "advanced"
-                        ? "border-teal-500 bg-gradient-to-br from-teal-50 to-cyan-50 shadow-md"
-                        : "border-slate-200 hover:border-slate-300 bg-white"
-                    }`}
+                    {/* More Games Coming Soon */}
+                    <Card className="border-2 border-dashed border-slate-300 bg-slate-50">
+                      <CardContent className="flex items-center justify-center py-8">
+                        <div className="text-center">
+                          <Gamepad2 className="w-12 h-12 text-slate-400 mx-auto mb-3" />
+                          <p className="text-slate-600 font-medium">More Games Coming Soon</p>
+                          <p className="text-sm text-slate-500 mt-1">Stay tuned for exciting new challenges!</p>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </CardContent>
+                </Card>
+              </div>
+            )}
+
+            {selectedGame === "dungeon" && (
+              <div className="space-y-4">
+                <div className="flex items-center gap-2 mb-4">
+                  <Button
+                    variant="outline"
+                    onClick={() => setSelectedGame("selection")}
+                    className="border-slate-300 text-slate-700 hover:bg-slate-50"
                   >
-                    <div className="font-semibold text-slate-900 mb-1">🔥 Advanced Dungeon</div>
-                    <div className="text-xs text-slate-600">
-                      5 rooms • Expert challenges • For masters
-                    </div>
-                  </button>
+                    ← Back to Games
+                  </Button>
                 </div>
-              </CardContent>
-            </Card>
 
-            <DungeonGame difficulty={selectedDifficulty} numRooms={5} />
+                <Card className="border-slate-200 bg-white">
+                  <CardHeader className="border-b border-slate-100">
+                    <CardTitle className="text-slate-900">Choose Your Challenge</CardTitle>
+                    <CardDescription className="text-slate-600">
+                      Select difficulty level before entering the dungeon
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="pt-6">
+                    <div className="grid gap-3 md:grid-cols-3 mb-6">
+                      <button
+                        onClick={() => setSelectedDifficulty("beginner")}
+                        className={`p-4 rounded-lg border-2 transition-all text-left ${
+                          selectedDifficulty === "beginner"
+                            ? "border-teal-500 bg-gradient-to-br from-teal-50 to-cyan-50 shadow-md"
+                            : "border-slate-200 hover:border-slate-300 bg-white"
+                        }`}
+                      >
+                        <div className="font-semibold text-slate-900 mb-1">🌱 Beginner Dungeon</div>
+                        <div className="text-xs text-slate-600">
+                          5 rooms • Basic concepts • Perfect for starters
+                        </div>
+                      </button>
+
+                      <button
+                        onClick={() => setSelectedDifficulty("intermediate")}
+                        className={`p-4 rounded-lg border-2 transition-all text-left ${
+                          selectedDifficulty === "intermediate"
+                            ? "border-teal-500 bg-gradient-to-br from-teal-50 to-cyan-50 shadow-md"
+                            : "border-slate-200 hover:border-slate-300 bg-white"
+                        }`}
+                      >
+                        <div className="font-semibold text-slate-900 mb-1">⚡ Intermediate Dungeon</div>
+                        <div className="text-xs text-slate-600">
+                          5 rooms • Applied knowledge • Recommended
+                        </div>
+                      </button>
+
+                      <button
+                        onClick={() => setSelectedDifficulty("advanced")}
+                        className={`p-4 rounded-lg border-2 transition-all text-left ${
+                          selectedDifficulty === "advanced"
+                            ? "border-teal-500 bg-gradient-to-br from-teal-50 to-cyan-50 shadow-md"
+                            : "border-slate-200 hover:border-slate-300 bg-white"
+                        }`}
+                      >
+                        <div className="font-semibold text-slate-900 mb-1">🔥 Advanced Dungeon</div>
+                        <div className="text-xs text-slate-600">
+                          5 rooms • Expert challenges • For masters
+                        </div>
+                      </button>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <DungeonGame difficulty={selectedDifficulty} numRooms={5} />
+              </div>
+            )}
+
+            {selectedGame === "quiz" && (
+              <QuickQuiz onBack={() => setSelectedGame("selection")} />
+            )}
           </TabsContent>
 
           {/* History Tab */}
