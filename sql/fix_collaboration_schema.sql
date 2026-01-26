@@ -39,6 +39,16 @@ ALTER TABLE group_join_requests ENABLE ROW LEVEL SECURITY;
 
 -- RLS Policies
 
+-- Drop existing policies to ensure idempotency
+DROP POLICY IF EXISTS "Group members can view messages" ON group_messages;
+DROP POLICY IF EXISTS "Group members can send messages" ON group_messages;
+DROP POLICY IF EXISTS "Group members can view files" ON group_files;
+DROP POLICY IF EXISTS "Group members can upload files" ON group_files;
+DROP POLICY IF EXISTS "Users can create join requests" ON group_join_requests;
+DROP POLICY IF EXISTS "Users can view their own requests" ON group_join_requests;
+DROP POLICY IF EXISTS "Group admins can view requests" ON group_join_requests;
+DROP POLICY IF EXISTS "Group admins can update requests" ON group_join_requests;
+
 -- Group Messages: Visible to members, Insertable by members
 CREATE POLICY "Group members can view messages" ON group_messages
   FOR SELECT USING (
