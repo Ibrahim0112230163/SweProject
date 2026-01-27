@@ -4,13 +4,13 @@ import { useState } from "react"
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
-import { 
-  GraduationCap, 
-  LayoutDashboard, 
-  BookOpen, 
-  Users, 
-  MessageSquare, 
-  Settings, 
+import {
+  GraduationCap,
+  LayoutDashboard,
+  BookOpen,
+  Users,
+  MessageSquare,
+  Settings,
   LogOut,
   Menu,
   X,
@@ -37,10 +37,10 @@ export default function TeacherLayout({ children, teacher }: TeacherLayoutProps)
   const navigation = [
     { name: "Dashboard", href: "/dashboard/teacher", icon: LayoutDashboard },
     { name: "Courses", href: "/dashboard/teacher/courses", icon: BookOpen },
-    { name: "Students", href: "/dashboard/teacher/students", icon: Users },
-    { name: "Messages", href: "/dashboard/teacher/messages", icon: MessageSquare },
-    { name: "Profile", href: "/dashboard/teacher/profile", icon: User },
-    { name: "Settings", href: "/dashboard/teacher/settings", icon: Settings },
+    // { name: "Students", href: "/dashboard/teacher/students", icon: Users },
+    // { name: "Messages", href: "/dashboard/teacher/messages", icon: MessageSquare },
+    // { name: "Profile", href: "/dashboard/teacher/profile", icon: User },
+    // { name: "Settings", href: "/dashboard/teacher/settings", icon: Settings },
   ]
 
   return (
@@ -55,9 +55,8 @@ export default function TeacherLayout({ children, teacher }: TeacherLayoutProps)
 
       {/* Sidebar */}
       <aside
-        className={`fixed top-0 left-0 z-50 h-full w-64 bg-white border-r border-slate-200 transform transition-transform duration-200 ease-in-out lg:translate-x-0 ${
-          sidebarOpen ? "translate-x-0" : "-translate-x-full"
-        }`}
+        className={`fixed top-0 left-0 z-50 h-full w-64 bg-white border-r border-slate-200 transform transition-transform duration-200 ease-in-out lg:translate-x-0 ${sidebarOpen ? "translate-x-0" : "-translate-x-full"
+          }`}
       >
         <div className="flex flex-col h-full">
           {/* Logo */}
@@ -84,11 +83,10 @@ export default function TeacherLayout({ children, teacher }: TeacherLayoutProps)
                 <Link
                   key={item.name}
                   href={item.href}
-                  className={`flex items-center space-x-3 px-4 py-3 rounded-lg transition-colors ${
-                    isActive
-                      ? "bg-teal-50 text-teal-700 font-medium"
-                      : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
-                  }`}
+                  className={`flex items-center space-x-3 px-4 py-3 rounded-lg transition-colors ${isActive
+                    ? "bg-teal-50 text-teal-700 font-medium"
+                    : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+                    }`}
                   onClick={() => setSidebarOpen(false)}
                 >
                   <item.icon className="h-5 w-5" />
