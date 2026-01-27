@@ -74,12 +74,39 @@ export async function POST(req: NextRequest) {
       const model = new ChatGoogleGenerativeAI({
         model: "gemini-3-flash-preview",
         apiKey: process.env.GOOGLE_API_KEY,
-        temperature: 0.8,
+        temperature: 1.2, // Higher temperature for more randomness
       })
 
-      const prompt = `Generate ${numQuestions} multiple-choice quiz questions about ${category}.
+      // Add randomization to ensure different questions each time
+      const topics = [
+        "algorithms and data structures",
+        "programming concepts and syntax",
+        "software engineering principles",
+        "databases and SQL",
+        "web development",
+        "operating systems",
+        "networking",
+        "cybersecurity",
+        "object-oriented programming",
+        "computational complexity",
+        "design patterns",
+        "version control and Git"
+      ]
+      
+      // Randomly select 3-4 topics to focus on
+      const shuffledTopics = topics.sort(() => Math.random() - 0.5)
+      const selectedTopics = shuffledTopics.slice(0, 3 + Math.floor(Math.random() * 2))
+      const randomSeed = Math.random().toString(36).substring(7)
+
+      const prompt = `Generate ${numQuestions} UNIQUE and FRESH multiple-choice quiz questions about ${category}.
+
+IMPORTANT: Create NEW questions that are different from previous quiz sessions. Use creativity!
+
+Focus areas for this quiz (mix these randomly): ${selectedTopics.join(", ")}
 
 Each question should be clear, educational, and test fundamental knowledge.
+Vary the difficulty levels across questions.
+Random seed for uniqueness: ${randomSeed}
 
 Return ONLY a valid JSON array with this exact structure:
 [
