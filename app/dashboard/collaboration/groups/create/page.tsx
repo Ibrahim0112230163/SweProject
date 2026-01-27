@@ -75,6 +75,9 @@ export default function CreateGroupPage() {
         return
       }
 
+      // Generate a random group code
+      const groupCode = Math.random().toString(36).substring(2, 10).toUpperCase();
+
       // Create group
       const { data: groupData, error: groupError } = await supabase
         .from("groups")
@@ -85,6 +88,7 @@ export default function CreateGroupPage() {
             creator_id: user.id,
             status: formData.status,
             max_members: 5,
+            group_code: groupCode,
           },
         ])
         .select()
@@ -106,8 +110,8 @@ export default function CreateGroupPage() {
       // Redirect to group page
       router.push(`/dashboard/collaboration/groups/${groupData.id}`)
     } catch (error) {
-      console.error("Error creating group:", error)
-      alert("Failed to create group. Please try again.")
+      console.error("Error creating group:", JSON.stringify(error, null, 2))
+      alert(`Failed to create group: ${(error as any)?.message || "Unknown error"}`)
     } finally {
       setCreating(false)
     }
