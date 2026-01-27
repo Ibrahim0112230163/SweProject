@@ -68,7 +68,7 @@ export default function TeacherDashboardPage() {
         .select("*")
         .eq("username", username)
         .single()
-      
+
       if (teacherData) {
         setTeacher(teacherData)
       }
@@ -96,8 +96,8 @@ export default function TeacherDashboardPage() {
               <h1 className="text-3xl font-bold text-slate-900">Edit Profile</h1>
               <p className="text-slate-600 mt-1">Update your teacher profile information</p>
             </div>
-            <Button 
-              onClick={() => setShowProfileEditor(false)} 
+            <Button
+              onClick={() => setShowProfileEditor(false)}
               variant="outline"
             >
               Back to Dashboard
@@ -120,7 +120,7 @@ export default function TeacherDashboardPage() {
             </h1>
             <p className="text-slate-600 mt-1">@{username}</p>
           </div>
-          <Button 
+          <Button
             onClick={() => setShowProfileEditor(true)}
             className="bg-teal-500 hover:bg-teal-600"
           >
@@ -222,7 +222,7 @@ export default function TeacherDashboardPage() {
         </div>
 
         {/* Quick Actions */}
-        <Card>
+        {/* <Card>
           <CardHeader>
             <CardTitle>Quick Actions</CardTitle>
           </CardHeader>
@@ -261,7 +261,7 @@ export default function TeacherDashboardPage() {
               </Link>
             </div>
           </CardContent>
-        </Card>
+        </Card> */}
 
         {/* Profile Details */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
