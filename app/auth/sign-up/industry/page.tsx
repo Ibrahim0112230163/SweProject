@@ -55,11 +55,19 @@ export default function IndustrySignUpPage() {
       const passwordHash = hashArray.map(b => b.toString(16).padStart(2, "0")).join("")
 
       // Check if company name already exists
-      const { data: existingExpert } = await supabase
+      const { data: existingExpert, error: checkError } = await supabase
         .from("industry_experts")
         .select("company_name")
         .eq("company_name", formData.companyName)
         .single()
+
+      // Ignore "not found" errors - that's expected for new signups
+      if (checkError && checkError.code !== 'PGRST116') {
+        console.error("Error checking existing company:", checkError)
+        setError("Database connection error. Please ensure you've run the setup scripts.")
+        setLoading(false)
+        return
+      }
 
       if (existingExpert) {
         setError("An account with this company name already exists")
@@ -85,13 +93,22 @@ export default function IndustrySignUpPage() {
       console.log("Insert result:", { data: insertedData, error: insertError })
 
       if (insertError) {
-        console.error("Sign up error details:", {
-          message: insertError.message,
-          details: insertError.details,
-          hint: insertError.hint,
-          code: insertError.code
-        })
-        setError(`Failed to create account: ${insertError.message || insertError.details || 'Unknown error'}`)
+        console.error("Sign up error details:", insertError)
+        
+        // Provide helpful error messages
+        let errorMessage = "Failed to create account"
+        
+        if (insertError.code === '42501') {
+          errorMessage = "Permission denied. Please run scripts/FIX_INDUSTRY_LOGIN.sql in Supabase first."
+        } else if (insertError.message) {
+          errorMessage = `Failed to create account: ${insertError.message}`
+        } else if (insertError.details) {
+          errorMessage = `Failed to create account: ${insertError.details}`
+        } else {
+          errorMessage = "Database error. Check that industry_experts table exists and RLS policies are configured."
+        }
+        
+        setError(errorMessage)
         setLoading(false)
         return
       }
