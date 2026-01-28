@@ -13,16 +13,17 @@ import {
   Settings, 
   LogOut,
   Trophy,
-  Plus
+  Plus,
+  FileText
 } from "lucide-react"
 import type { IndustryExpert } from "@/types/profile"
 
 interface IndustryLayoutProps {
   children: React.ReactNode
-  expert: IndustryExpert | null
+  expert?: IndustryExpert | null
 }
 
-export default function IndustryLayout({ children, expert }: IndustryLayoutProps) {
+export default function IndustryLayout({ children, expert = null }: IndustryLayoutProps) {
   const router = useRouter()
 
   const handleLogout = () => {
@@ -36,6 +37,7 @@ export default function IndustryLayout({ children, expert }: IndustryLayoutProps
     { name: "Dashboard", href: "/dashboard/industry", icon: LayoutDashboard },
     { name: "Post Challenge", href: "/dashboard/industry/challenges/create", icon: Plus },
     { name: "My Posts", href: "/dashboard/industry/posts", icon: Briefcase },
+    { name: "Tests", href: "/dashboard/industry/tests", icon: FileText },
     { name: "Skill Validations", href: "/dashboard/industry/validations", icon: CheckCircle2 },
     { name: "Candidates", href: "/dashboard/industry/candidates", icon: Users },
     { name: "Messages", href: "/dashboard/industry/messages", icon: MessageSquare },

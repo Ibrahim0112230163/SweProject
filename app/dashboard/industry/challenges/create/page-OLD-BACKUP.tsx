@@ -13,11 +13,13 @@ import { Badge } from "@/components/ui/badge"
 import { X, Plus, Save, ArrowLeft, Sparkles } from "lucide-react"
 import { toast } from "sonner"
 import { createClient } from "@/lib/supabase/client"
+import type { IndustryExpert } from "@/types/profile"
 
 interface FormData {
   title: string
   post_type: "challenge" | "job" | "both"
   description: string
+  subject: string
   required_skills: string[]
   challenge_task_url: string
   difficulty_level: "beginner" | "intermediate" | "advanced"
@@ -35,11 +37,13 @@ export default function CreateChallengePage() {
   const [submitting, setSubmitting] = useState(false)
   const [companyName, setCompanyName] = useState<string | null>(null)
   const [industryExpertId, setIndustryExpertId] = useState<string | null>(null)
+  const [expert, setExpert] = useState<IndustryExpert | null>(null)
 
   const [formData, setFormData] = useState<FormData>({
     title: "",
     post_type: "challenge",
     description: "",
+    subject: "",
     required_skills: [],
     challenge_task_url: "",
     difficulty_level: "intermediate",
@@ -53,21 +57,41 @@ export default function CreateChallengePage() {
   const [skillInput, setSkillInput] = useState("")
 
   useEffect(() => {
-    // Check custom auth
-    const storedCompanyName = localStorage.getItem("industry_company_name")
-    const storedExpertId = localStorage.getItem("industry_expert_id")
-    const storedSession = localStorage.getItem("industry_session")
+    const fetchExpertData = async () => {
+      // Check custom auth
+      const storedCompanyName = localStorage.getItem("industry_company_name")
+      const storedExpertId = localStorage.getItem("industry_expert_id")
+      const storedSession = localStorage.getItem("industry_session")
 
-    if (!storedSession || !storedCompanyName || !storedExpertId) {
-      toast.error("Please log in to continue")
-      router.push("/auth/login/industry")
-      return
+      if (!storedSession || !storedCompanyName || !storedExpertId) {
+        toast.error("Please log in to continue")
+        router.push("/auth/login/industry")
+        return
+      }
+
+      setCompanyName(storedCompanyName)
+      setIndustryExpertId(storedExpertId)
+
+      // Fetch expert data
+      try {
+        const { data: expertData } = await supabase
+          .from("industry_experts")
+          .select("*")
+          .eq("id", storedExpertId)
+          .single()
+
+        if (expertData) {
+          setExpert(expertData)
+        }
+      } catch (error) {
+        console.error("Error fetching expert data:", error)
+      }
+
+      setLoading(false)
     }
 
-    setCompanyName(storedCompanyName)
-    setIndustryExpertId(storedExpertId)
-    setLoading(false)
-  }, [router])
+    fetchExpertData()
+  }, [router, supabase])
 
   const handleAddSkill = () => {
     if (skillInput.trim() && !formData.required_skills.includes(skillInput.trim())) {
@@ -95,14 +119,26 @@ export default function CreateChallengePage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    
-    console.log("🚀 Form submitted!")
-    console.log("📋 Form data:", formData)
-    console.log("🏢 Company:", companyName)
-    console.log("👤 Expert ID:", industryExpertId)
+
+    console.log("Form submitted with data:", formData)
 
     if (!companyName || !industryExpertId) {
       toast.error("Authentication error. Please log in again.")
+      return
+    }
+
+    if (!formData.title.trim()) {
+      toast.error("Please enter a title")
+      return
+    }
+
+    if (!formData.description.trim()) {
+      toast.error("Please enter a description")
+      return
+    }
+
+    if (!formData.subject) {
+      toast.error("Please select a subject category")
       return
     }
 
@@ -117,7 +153,6 @@ export default function CreateChallengePage() {
     }
 
     setSubmitting(true)
-    console.log("✅ Validation passed, submitting to database...")
 
     try {
       const postData = {
@@ -126,6 +161,7 @@ export default function CreateChallengePage() {
         title: formData.title,
         post_type: formData.post_type,
         description: formData.description,
+        subject: formData.subject || null,
         required_skills: formData.required_skills,
         challenge_task_url: formData.challenge_task_url || null,
         difficulty_level: formData.difficulty_level,
@@ -137,16 +173,15 @@ export default function CreateChallengePage() {
         is_active: true,
       }
 
-      console.log("📤 Sending to database:", postData)
-
       const { data, error } = await supabase.from("industry_posts").insert([postData]).select()
 
       if (error) {
-        console.error("❌ Database error:", error)
+        console.error("Supabase error:", error)
         throw error
       }
 
-      console.log("✅ Success! Post created:", data)
+      console.log("Post created successfully:", data)
+
       toast.success(
         formData.post_type === "challenge"
           ? "Challenge posted successfully! Students can now submit solutions."
@@ -156,7 +191,13 @@ export default function CreateChallengePage() {
       )
       router.push("/dashboard/industry")
     } catch (error: any) {
-      console.error("❌ Error creating post:", error)
+      console.error("Error creating post:", error)
+      console.error("Error details:", {
+        message: error.message,
+        details: error.details,
+        hint: error.hint,
+        code: error.code
+      })
       toast.error(error.message || "Failed to create post. Please try again.")
     } finally {
       setSubmitting(false)
@@ -165,7 +206,7 @@ export default function CreateChallengePage() {
 
   if (loading) {
     return (
-      <IndustryLayout>
+      <IndustryLayout expert={expert}>
         <div className="flex items-center justify-center min-h-[400px]">
           <div className="text-center">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-600 mx-auto"></div>
@@ -177,7 +218,7 @@ export default function CreateChallengePage() {
   }
 
   return (
-    <IndustryLayout>
+    <IndustryLayout expert={expert}>
       <div className="max-w-4xl mx-auto">
         <div className="flex items-center justify-between mb-6">
           <div>
@@ -286,6 +327,40 @@ export default function CreateChallengePage() {
                   rows={6}
                   required
                 />
+              </div>
+
+              <div>
+                <Label htmlFor="subject">
+                  Subject/Category <span className="text-red-500">*</span>
+                </Label>
+                <Select
+                  value={formData.subject}
+                  onValueChange={(value) => {
+                    console.log("Subject selected:", value)
+                    setFormData({ ...formData, subject: value })
+                  }}
+                >
+                  <SelectTrigger id="subject">
+                    <SelectValue placeholder="Select subject category" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Computer Science">Computer Science</SelectItem>
+                    <SelectItem value="Software Engineering">Software Engineering</SelectItem>
+                    <SelectItem value="Data Science">Data Science</SelectItem>
+                    <SelectItem value="Web Development">Web Development</SelectItem>
+                    <SelectItem value="Mobile Development">Mobile Development</SelectItem>
+                    <SelectItem value="DevOps">DevOps</SelectItem>
+                    <SelectItem value="Cybersecurity">Cybersecurity</SelectItem>
+                    <SelectItem value="Artificial Intelligence">Artificial Intelligence</SelectItem>
+                    <SelectItem value="Machine Learning">Machine Learning</SelectItem>
+                    <SelectItem value="Cloud Computing">Cloud Computing</SelectItem>
+                    <SelectItem value="Database Management">Database Management</SelectItem>
+                    <SelectItem value="UI/UX Design">UI/UX Design</SelectItem>
+                    <SelectItem value="Game Development">Game Development</SelectItem>
+                    <SelectItem value="Blockchain">Blockchain</SelectItem>
+                    <SelectItem value="Other">Other</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
 
               {(formData.post_type === "challenge" || formData.post_type === "both") && (
@@ -455,10 +530,19 @@ export default function CreateChallengePage() {
 
           {/* Submit Button */}
           <div className="flex gap-3">
-            <button 
+            <Button 
               type="submit" 
-              disabled={submitting}
-              className="flex-1 bg-orange-600 hover:bg-orange-700 text-white font-semibold py-3 px-6 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center"
+              disabled={submitting} 
+              className="flex-1 bg-orange-600 hover:bg-orange-700"
+              onClick={(e) => {
+                console.log("=== BUTTON CLICKED ===")
+                console.log("Submit button clicked!")
+                console.log("Current form data:", formData)
+                console.log("Company name:", companyName)
+                console.log("Expert ID:", industryExpertId)
+                console.log("Expert:", expert)
+                console.log("Submitting:", submitting)
+              }}
             >
               {submitting ? (
                 <>
@@ -475,14 +559,23 @@ export default function CreateChallengePage() {
                       : "Create Post"}
                 </>
               )}
-            </button>
-            <button 
+            </Button>
+            <Button 
               type="button" 
-              onClick={() => router.back()}
-              className="px-6 py-3 border border-slate-300 rounded-lg hover:bg-slate-50 transition-colors font-medium"
+              variant="outline" 
+              onClick={() => {
+                console.log("=== TEST BUTTON CLICKED ===")
+                console.log("Calling handleSubmit directly")
+                const fakeEvent = new Event('submit') as any
+                fakeEvent.preventDefault = () => console.log("preventDefault called")
+                handleSubmit(fakeEvent)
+              }}
             >
+              TEST
+            </Button>
+            <Button type="button" variant="outline" onClick={() => router.back()}>
               Cancel
-            </button>
+            </Button>
           </div>
         </form>
       </div>
