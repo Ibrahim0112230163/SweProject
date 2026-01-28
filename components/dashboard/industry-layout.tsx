@@ -14,7 +14,8 @@ import {
   LogOut,
   Trophy,
   Plus,
-  FileText
+  FileText,
+  Calendar
 } from "lucide-react"
 import type { IndustryExpert } from "@/types/profile"
 
@@ -39,6 +40,8 @@ export default function IndustryLayout({ children, expert = null }: IndustryLayo
     { name: "Tests", href: "/dashboard/industry/tests", icon: FileText },
     { name: "Skill Validations", href: "/dashboard/industry/validations", icon: CheckCircle2 },
     { name: "Candidates", href: "/dashboard/industry/candidates", icon: Users },
+    { name: "Branding", href: "/dashboard/industry/branding", icon: Building2 },
+    { name: "Events", href: "/dashboard/industry/events", icon: Calendar },
     { name: "Messages", href: "/dashboard/industry/messages", icon: MessageSquare },
     { name: "Settings", href: "/dashboard/industry/settings", icon: Settings },
   ]

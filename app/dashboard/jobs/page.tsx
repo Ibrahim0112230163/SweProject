@@ -16,7 +16,8 @@ import {
     TrendingUp,
     BookmarkCheck,
     Bookmark,
-    Building2
+    Building2,
+    RefreshCw
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -36,6 +37,21 @@ interface JobMatch {
     description?: string;
 }
 
+interface IndustryJob {
+    id: string;
+    job_title: string;
+    company_name: string;
+    description: string;
+    requirements: string[];
+    location: string;
+    job_type: string;
+    salary_range: string | null;
+    experience_level: string;
+    status: string;
+    created_at: string;
+    application_deadline: string | null;
+}
+
 interface UserProfile {
     id: string;
     user_id: string;
@@ -51,11 +67,13 @@ export default function JobsPage() {
     const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
     const [jobs, setJobs] = useState<JobMatch[]>([]);
     const [filteredJobs, setFilteredJobs] = useState<JobMatch[]>([]);
+    const [industryJobs, setIndustryJobs] = useState<IndustryJob[]>([]);
     const [loading, setLoading] = useState(true);
     const [searchQuery, setSearchQuery] = useState("");
     const [activeTab, setActiveTab] = useState("all");
     const [savedJobs, setSavedJobs] = useState<Set<string>>(new Set());
     const [userSkills, setUserSkills] = useState<string[]>([]);
+    const [refreshKey, setRefreshKey] = useState(0);
 
     useEffect(() => {
         const fetchJobsData = async () => {
@@ -107,6 +125,20 @@ export default function JobsPage() {
 
                 setJobs(jobsWithMetadata);
                 setFilteredJobs(jobsWithMetadata);
+
+                // Fetch industry posted jobs
+                const { data: industryJobsData, error: industryJobsError } = await supabase
+                    .from("job_postings")
+                    .select("*")
+                    .eq("status", "active")
+                    .order("created_at", { ascending: false });
+
+                if (industryJobsError) {
+                    console.error("Error fetching industry jobs:", industryJobsError);
+                } else {
+                    console.log("Industry jobs fetched:", industryJobsData);
+                    setIndustryJobs(industryJobsData || []);
+                }
             } catch (error) {
                 console.error("Error fetching jobs data:", error);
             } finally {
@@ -115,7 +147,7 @@ export default function JobsPage() {
         }
 
         fetchJobsData();
-    }, [supabase, router]);
+    }, [supabase, router, refreshKey]);
 
     const toggleSaveJob = (jobId: string) => {
         setSavedJobs(prev => {
@@ -174,8 +206,12 @@ export default function JobsPage() {
                         <p className="text-slate-600">Based on your unique skill set and career goals</p>
                     </div>
                     <div className="flex items-center gap-2">
-                        <Button variant="outline" className="flex items-center gap-2">
-                            <Filter className="w-4 h-4" /> Filters
+                        <Button 
+                            variant="outline" 
+                            className="flex items-center gap-2"
+                            onClick={() => setRefreshKey(prev => prev + 1)}
+                        >
+                            <RefreshCw className="w-4 h-4" /> Refresh
                         </Button>
                         <Button className="bg-teal-500 hover:bg-teal-600">New Alert</Button>
                     </div>
@@ -255,15 +291,92 @@ export default function JobsPage() {
                         <TabsTrigger value="recommended">
                             Recommended ({jobs.filter(j => j.match_percentage >= 85).length})
                         </TabsTrigger>
+                        <TabsTrigger value="industry">
+                            Industry Posted ({industryJobs.length})
+                        </TabsTrigger>
                         <TabsTrigger value="realtime">
                             🔴 Live BD Jobs
                         </TabsTrigger>
                         <TabsTrigger value="saved">Saved ({savedJobs.size})</TabsTrigger>
                     </TabsList>
 
+                    {/* Industry Posted Jobs Tab */}
+                    <TabsContent value="industry" className="space-y-4">
+                        {industryJobs.length > 0 ? (
+                            industryJobs.map((job) => (
+                                <Card key={job.id} className="hover:shadow-md transition-shadow duration-200 border-blue-200 bg-blue-50/30">
+                                    <CardContent className="p-6">
+                                        <div className="flex flex-col md:flex-row gap-6">
+                                            <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl flex items-center justify-center text-white font-bold text-2xl flex-shrink-0">
+                                                <Building2 className="w-8 h-8" />
+                                            </div>
+
+                                            <div className="flex-1 space-y-4">
+                                                <div className="flex flex-wrap items-start justify-between gap-2">
+                                                    <div>
+                                                        <div className="flex items-center gap-3 mb-1">
+                                                            <h3 className="text-xl font-bold text-slate-900">{job.job_title}</h3>
+                                                            <Badge className="bg-blue-100 text-blue-700 border-blue-300">
+                                                                Industry Posted
+                                                            </Badge>
+                                                        </div>
+                                                        <p className="text-blue-600 font-medium">{job.company_name}</p>
+                                                    </div>
+                                                </div>
+
+                                                <div className="flex flex-wrap items-center gap-y-2 gap-x-6 text-sm text-slate-500">
+                                                    <div className="flex items-center gap-1.5">
+                                                        <MapPin className="w-4 h-4" /> {job.location}
+                                                    </div>
+                                                    {job.salary_range && (
+                                                        <div className="flex items-center gap-1.5">
+                                                            <DollarSign className="w-4 h-4" /> {job.salary_range}
+                                                        </div>
+                                                    )}
+                                                    <div className="flex items-center gap-1.5">
+                                                        <Briefcase className="w-4 h-4" /> {job.job_type}
+                                                    </div>
+                                                    <div className="flex items-center gap-1.5">
+                                                        <Clock className="w-4 h-4" /> {new Date(job.created_at).toLocaleDateString()}
+                                                    </div>
+                                                </div>
+
+                                                <p className="text-sm text-slate-600">
+                                                    {job.description}
+                                                </p>
+
+                                                <div className="flex flex-wrap gap-2">
+                                                    {job.requirements && job.requirements.length > 0 && job.requirements.map((req, idx) => (
+                                                        <Badge key={idx} variant="secondary" className="bg-blue-50 border-blue-100 text-blue-700">
+                                                            {req}
+                                                        </Badge>
+                                                    ))}
+                                                    <Badge variant="outline" className="border-slate-300 text-slate-600">
+                                                        {job.experience_level}
+                                                    </Badge>
+                                                </div>
+                                            </div>
+
+                                            <div className="flex md:flex-col justify-end gap-2 md:w-32">
+                                                <Button className="flex-1 bg-blue-500 hover:bg-blue-600 text-white">Apply Now</Button>
+                                                <Button variant="outline" className="flex-1">View Details</Button>
+                                            </div>
+                                        </div>
+                                    </CardContent>
+                                </Card>
+                            ))
+                        ) : (
+                            <div className="text-center py-20 bg-blue-50 rounded-xl border-2 border-dashed border-blue-200">
+                                <Building2 className="w-12 h-12 text-blue-300 mx-auto mb-4" />
+                                <h3 className="text-lg font-medium text-slate-900">No Industry Jobs Posted Yet</h3>
+                                <p className="text-slate-500">Check back later for new job postings from industry partners.</p>
+                            </div>
+                        )}
+                    </TabsContent>
+
                     {/* Real-Time Jobs Tab */}
                     <TabsContent value="realtime">
-                        <RealTimeJobs userSkills={userSkills} userExperience="Entry level" />
+                        <RealTimeJobs key={refreshKey} userSkills={userSkills} userExperience="Entry level" />
                     </TabsContent>
 
                     <TabsContent value="all" className="space-y-4">
