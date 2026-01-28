@@ -12,6 +12,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { 
   FileText, 
   Plus,
@@ -22,9 +23,16 @@ import {
   BookOpen
 } from "lucide-react"
 
+interface Subject {
+  id: string
+  name: string
+  is_custom: boolean
+}
+
 interface Test {
   id: string
-  subject: string
+  subject_id: string
+  subjects?: Subject
   description: string
   solvers: { name: string; solved_at: string; student_id: string }[]
   created_at: string
@@ -37,12 +45,15 @@ export default function IndustryTestsPage() {
   
   const [loading, setLoading] = useState(true)
   const [tests, setTests] = useState<Test[]>([])
+  const [subjects, setSubjects] = useState<Subject[]>([])
   const [expertId, setExpertId] = useState<string | null>(null)
   const [companyName, setCompanyName] = useState<string | null>(null)
   
   // Dialog states
   const [createDialog, setCreateDialog] = useState(false)
-  const [subject, setSubject] = useState("")
+  const [addSubjectDialog, setAddSubjectDialog] = useState(false)
+  const [selectedSubjectId, setSelectedSubjectId] = useState("")
+  const [newSubjectName, setNewSubjectName] = useState("")
   const [description, setDescription] = useState("")
   const [submitting, setSubmitting] = useState(false)
 
@@ -62,6 +73,27 @@ export default function IndustryTestsPage() {
     setExpertId(id)
   }, [router])
 
+  // Fetch subjects
+  useEffect(() => {
+    const fetchSubjects = async () => {
+      try {
+        const { data, error } = await supabase
+          .from("subjects")
+          .select("*")
+          .order("name", { ascending: true })
+
+        if (error) throw error
+
+        setSubjects(data || [])
+      } catch (error: any) {
+        console.error("Error fetching subjects:", error)
+        toast.error("Failed to load subjects")
+      }
+    }
+
+    fetchSubjects()
+  }, [supabase])
+
   // Fetch tests
   useEffect(() => {
     if (!expertId) return
@@ -71,7 +103,14 @@ export default function IndustryTestsPage() {
       try {
         const { data, error } = await supabase
           .from("industry_tests")
-          .select("*")
+          .select(`
+            *,
+            subjects (
+              id,
+              name,
+              is_custom
+            )
+          `)
           .eq("expert_id", expertId)
           .order("created_at", { ascending: false })
 
@@ -89,9 +128,49 @@ export default function IndustryTestsPage() {
     fetchTests()
   }, [expertId, supabase])
 
+  // Handle Add New Subject
+  const handleAddSubject = async () => {
+    if (!newSubjectName.trim()) {
+      toast.error("Please enter a subject name")
+      return
+    }
+
+    setSubmitting(true)
+
+    try {
+      const { data, error } = await supabase
+        .from("subjects")
+        .insert([{
+          name: newSubjectName.trim(),
+          is_custom: true,
+        }])
+        .select()
+
+      if (error) {
+        if (error.code === '23505') { // Unique constraint violation
+          toast.error("This subject already exists")
+        } else {
+          throw error
+        }
+        return
+      }
+
+      toast.success("Subject added successfully!")
+      setSubjects([...subjects, data[0]])
+      setSelectedSubjectId(data[0].id)
+      setAddSubjectDialog(false)
+      setNewSubjectName("")
+    } catch (error: any) {
+      console.error("Error adding subject:", error)
+      toast.error("Failed to add subject")
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
   // Handle Create Test
   const handleCreateTest = async () => {
-    if (!subject.trim() || !description.trim()) {
+    if (!selectedSubjectId || !description.trim()) {
       toast.error("Please fill in all fields")
       return
     }
@@ -104,19 +183,26 @@ export default function IndustryTestsPage() {
         .insert([{
           expert_id: expertId,
           company_name: companyName,
-          subject: subject.trim(),
+          subject_id: selectedSubjectId,
           description: description.trim(),
           solvers: [],
           is_active: true,
         }])
-        .select()
+        .select(`
+          *,
+          subjects (
+            id,
+            name,
+            is_custom
+          )
+        `)
 
       if (error) throw error
 
       toast.success("Test created successfully!")
       setTests([data[0], ...tests])
       setCreateDialog(false)
-      setSubject("")
+      setSelectedSubjectId("")
       setDescription("")
     } catch (error: any) {
       console.error("Error creating test:", error)
@@ -199,12 +285,29 @@ export default function IndustryTestsPage() {
               <div className="space-y-4">
                 <div>
                   <Label htmlFor="subject">Subject *</Label>
-                  <Input
-                    id="subject"
-                    value={subject}
-                    onChange={(e) => setSubject(e.target.value)}
-                    placeholder="e.g., JavaScript Fundamentals"
-                  />
+                  <div className="flex gap-2">
+                    <Select value={selectedSubjectId} onValueChange={setSelectedSubjectId}>
+                      <SelectTrigger className="flex-1">
+                        <SelectValue placeholder="Select a subject" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {subjects.map((subject) => (
+                          <SelectItem key={subject.id} value={subject.id}>
+                            {subject.name} {subject.is_custom && "(Custom)"}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => setAddSubjectDialog(true)}
+                      className="whitespace-nowrap"
+                    >
+                      <Plus className="h-4 w-4 mr-1" />
+                      Add New
+                    </Button>
+                  </div>
                 </div>
                 <div>
                   <Label htmlFor="description">Description *</Label>
@@ -227,6 +330,38 @@ export default function IndustryTestsPage() {
                   className="bg-teal-600 hover:bg-teal-700"
                 >
                   {submitting ? "Creating..." : "Create Test"}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+
+          {/* Add Subject Dialog */}
+          <Dialog open={addSubjectDialog} onOpenChange={setAddSubjectDialog}>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Add New Subject</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4">
+                <div>
+                  <Label htmlFor="newSubject">Subject Name *</Label>
+                  <Input
+                    id="newSubject"
+                    value={newSubjectName}
+                    onChange={(e) => setNewSubjectName(e.target.value)}
+                    placeholder="e.g., Artificial Intelligence"
+                  />
+                </div>
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setAddSubjectDialog(false)}>
+                  Cancel
+                </Button>
+                <Button 
+                  onClick={handleAddSubject} 
+                  disabled={submitting}
+                  className="bg-teal-600 hover:bg-teal-700"
+                >
+                  {submitting ? "Adding..." : "Add Subject"}
                 </Button>
               </DialogFooter>
             </DialogContent>
@@ -304,7 +439,7 @@ export default function IndustryTestsPage() {
                   <div className="flex items-start justify-between">
                     <div className="flex-1">
                       <div className="flex items-center gap-2 mb-2">
-                        <CardTitle className="text-xl">{test.subject}</CardTitle>
+                        <CardTitle className="text-xl">{test.subjects?.name || 'Unknown Subject'}</CardTitle>
                         {test.is_active ? (
                           <Badge className="bg-teal-500">Active</Badge>
                         ) : (
