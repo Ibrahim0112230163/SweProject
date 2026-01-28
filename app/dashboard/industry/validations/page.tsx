@@ -143,11 +143,15 @@ export default function SkillValidationPage() {
         const validationsWithDetails = await Promise.all(
           submissions.map(async (sub) => {
             // Get student profile
-            const { data: profile } = await supabase
+            const { data: profile, error: profileError } = await supabase
               .from("user_profiles")
-              .select("full_name, email, profile_picture, github_url")
+              .select("name, email, avatar_url")
               .eq("user_id", sub.student_id)
               .single()
+
+            if (profileError) {
+              console.warn("Profile fetch error for student:", sub.student_id, profileError)
+            }
 
             // Get student skills
             const { data: skills } = await supabase
@@ -197,10 +201,10 @@ export default function SkillValidationPage() {
             return {
               id: sub.id,
               student_id: sub.student_id,
-              student_name: profile?.full_name || "Unknown Student",
+              student_name: profile?.name || profile?.email || "Unknown Student",
               student_email: profile?.email || "",
-              profile_picture: profile?.profile_picture || null,
-              github_url: profile?.github_url || null,
+              profile_picture: profile?.avatar_url || null,
+              github_url: null,
               validated_skills: studentSkills,
               skill_match_score: matchScore,
               post_title: post?.title || "Unknown Post",
@@ -216,7 +220,7 @@ export default function SkillValidationPage() {
 
         setValidations(validationsWithDetails)
       } catch (error: any) {
-        console.error("Error fetching validations:", error)
+        console.error("Error fetching industry validations:", error)
         toast.error("Failed to load validations")
       } finally {
         setLoading(false)

@@ -20,7 +20,8 @@ import {
   Calendar,
   CheckCircle,
   Trash2,
-  BookOpen
+  BookOpen,
+  MessageSquare,
 } from "lucide-react"
 
 interface Subject {
@@ -506,7 +507,16 @@ export default function IndustryTestsPage() {
                 </CardContent>
 
                 <CardFooter className="bg-slate-50 border-t">
-                  <div className="flex gap-2">
+                  <div className="flex gap-2 w-full">
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      onClick={() => router.push(`/dashboard/industry/tests/${test.id}`)}
+                      className="flex-1 text-teal-600 hover:text-teal-700 hover:bg-teal-50"
+                    >
+                      <MessageSquare className="mr-2 h-4 w-4" />
+                      View Submissions ({test.solvers?.length || 0})
+                    </Button>
                     <Button 
                       variant="outline" 
                       size="sm"
