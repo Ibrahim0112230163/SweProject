@@ -35,6 +35,7 @@ export default function IndustryLayout({ children, expert = null }: IndustryLayo
 
   const navItems = [
     { name: "Dashboard", href: "/dashboard/industry", icon: LayoutDashboard },
+    { name: "Job Postings", href: "/dashboard/industry/jobs", icon: Briefcase },
     { name: "Tests", href: "/dashboard/industry/tests", icon: FileText },
     { name: "Skill Validations", href: "/dashboard/industry/validations", icon: CheckCircle2 },
     { name: "Candidates", href: "/dashboard/industry/candidates", icon: Users },

@@ -66,7 +66,21 @@ export default function IndustryDashboardPage() {
         </div>
 
         {/* Quick Actions */}
-        <div className="grid md:grid-cols-3 gap-6">
+        <div className="grid md:grid-cols-4 gap-6">
+          <Card className="border-blue-200 hover:shadow-lg transition-shadow">
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-sm font-medium text-slate-600">Job Postings</CardTitle>
+                <Briefcase className="h-5 w-5 text-blue-600" />
+              </div>
+            </CardHeader>
+            <CardContent>
+              <Link href="/dashboard/industry/jobs">
+                <Button variant="outline" className="w-full">Manage Jobs</Button>
+              </Link>
+            </CardContent>
+          </Card>
+
           <Card className="border-teal-200 hover:shadow-lg transition-shadow">
             <CardHeader>
               <div className="flex items-center justify-between">
@@ -95,11 +109,11 @@ export default function IndustryDashboardPage() {
             </CardContent>
           </Card>
 
-          <Card className="border-blue-200 hover:shadow-lg transition-shadow">
+          <Card className="border-amber-200 hover:shadow-lg transition-shadow">
             <CardHeader>
               <div className="flex items-center justify-between">
                 <CardTitle className="text-sm font-medium text-slate-600">Candidates</CardTitle>
-                <Users className="h-5 w-5 text-blue-600" />
+                <Users className="h-5 w-5 text-amber-600" />
               </div>
             </CardHeader>
             <CardContent>
