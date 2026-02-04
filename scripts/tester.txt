@@ -1,0 +1,95 @@
+file 1
+------
+from selenium import webdriver
+from selenium.webdriver.edge.service import Service
+import time
+
+service_obj=Service()
+
+#to keep the page open
+options=webdriver.EdgeOptions()
+options.add_experimental_option("detach",True)
+
+driver=webdriver.Edge(options=options,service=service_obj)
+driver.maximize_window()
+driver.get("https://www.google.com")
+print(driver.title)
+print(driver.current_url)
+
+driver.get("https://www.youtube.com")
+time.sleep(1.5)
+driver.back()
+time.sleep(1.5)
+driver.forward()
+time.sleep(1.5)
+driver.close()
+#driver.refresh()  //to load page again
+
+
+file 2
+------
+from selenium import webdriver
+from selenium.webdriver.edge.service import Service
+from selenium.webdriver.common.by import By
+import time
+
+service_obj=Service()
+
+#to keep the page open
+options=webdriver.EdgeOptions()
+options.add_experimental_option("detach",True)
+
+driver=webdriver.Edge(options=options,service=service_obj)
+driver.maximize_window()
+driver.get("http://www.rahulshettyacademy.com/angularpractice/")
+print(driver.title)
+print(driver.current_url)
+
+driver.find_element(By.CLASS_NAME,"form-control").send_keys("John")
+driver.find_element(By.NAME,"email").send_keys("Cenation@gmail.com")
+driver.find_element(By.ID,"exampleInputPassword1").send_keys("1234")
+driver.find_element(By.ID,"exampleCheck1").click()
+
+driver.find_element(By.ID,"exampleInputPassword1").clear()  #to prevent concatenation
+driver.find_element(By.XPATH,"//input[@type='password']").send_keys("5678")
+
+driver.find_element(By.ID,"exampleInputPassword1").clear()
+driver.find_element(By.CSS_SELECTOR,"input[type='password']").send_keys("12345")
+
+driver.find_element(By.CLASS_NAME,"form-control").clear()
+driver.find_element(By.XPATH,"(//input[@type='text'])[1]").send_keys("Roman")
+driver.find_element(By.NAME,"email").clear()
+driver.find_element(By.XPATH,"(//input[@type='text'])[2]").send_keys("reigns@gmail.com")
+
+driver.find_element(By.ID,"exampleFormControlSelect1").send_keys("Female")
+
+time.sleep(2)
+driver.find_element(By.LINK_TEXT,"Shop").click()
+time.sleep(2)
+driver.back()
+time.sleep(2)
+driver.find_element(By.CLASS_NAME,"btn").click()
+
+msg=driver.find_element(By.CLASS_NAME,"alert").text
+print(msg)
+
+
+file 3
+------
+from selenium import webdriver
+from selenium.webdriver.edge.service import Service
+from selenium.webdriver.common.by import By
+import time
+
+service_obj=Service()
+
+#to keep the page open
+options=webdriver.EdgeOptions()
+options.add_experimental_option("detach",True)
+
+driver=webdriver.Edge(options=options,service=service_obj)
+driver.maximize_window()
+driver.get("https://www.uiu.ac.bd/important-contact/")
+elements=driver.find_elements(By.CLASS_NAME,"section-wrapper")
+for x in elements:
+    print(x.text)
