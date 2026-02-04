@@ -460,11 +460,11 @@ export default function GroupDetailPage() {
       if (error) throw error
       alert("Join request sent! The group admin will review your request.")
     } catch (error: any) {
-      if (error.code === "23505") {
+      if (error.code === "23505") { // Unique violation
         alert("You already have a pending join request for this group.")
       } else {
-        console.error("Error sending join request:", error)
-        alert("Failed to send join request")
+        console.error("Error sending join request:", JSON.stringify(error, null, 2))
+        alert(`Failed to send join request: ${(error as any)?.message || "Unknown error"}`)
       }
     }
   }
@@ -788,11 +788,10 @@ export default function GroupDetailPage() {
                             </span>
                           </div>
                           <div
-                            className={`inline-block px-4 py-2 rounded-lg ${
-                              isOwnMessage
-                                ? "bg-gradient-to-r from-teal-500 to-cyan-500 text-white"
-                                : "bg-slate-100 text-slate-900"
-                            }`}
+                            className={`inline-block px-4 py-2 rounded-lg ${isOwnMessage
+                              ? "bg-gradient-to-r from-teal-500 to-cyan-500 text-white"
+                              : "bg-slate-100 text-slate-900"
+                              }`}
                           >
                             {msg.content}
                           </div>
@@ -801,7 +800,11 @@ export default function GroupDetailPage() {
                     )
                   })
                 ) : (
-                  <div className="text-center text-slate-500 py-20">No messages yet. Start the conversation!</div>
+                  <div className="flex flex-col items-center justify-center h-full text-slate-500 py-10">
+                    <Send className="w-12 h-12 mb-2 opacity-20" />
+                    <p className="font-medium">No messages yet</p>
+                    <p className="text-sm">Start the conversation!</p>
+                  </div>
                 )}
                 <div ref={messagesEndRef} />
               </CardContent>

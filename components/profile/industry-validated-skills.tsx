@@ -62,11 +62,23 @@ export default function IndustryValidatedSkills({ userId }: IndustryValidatedSki
         .eq("student_id", studentId)
         .order("validation_date", { ascending: false })
 
-      if (error) throw error
-
-      setValidations(data || [])
+      if (error) {
+        console.error("Error fetching industry validations:", error)
+        console.error("Error details:", {
+          message: error.message,
+          details: error.details,
+          hint: error.hint,
+          code: error.code
+        })
+        
+        // Don't throw - just log and show empty state
+        setValidations([])
+      } else {
+        setValidations(data || [])
+      }
     } catch (error) {
       console.error("Error fetching industry validations:", error)
+      setValidations([])
     } finally {
       setLoading(false)
     }

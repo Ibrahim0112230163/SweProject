@@ -13,16 +13,18 @@ import {
   Settings, 
   LogOut,
   Trophy,
-  Plus
+  Plus,
+  FileText,
+  Calendar
 } from "lucide-react"
 import type { IndustryExpert } from "@/types/profile"
 
 interface IndustryLayoutProps {
   children: React.ReactNode
-  expert: IndustryExpert | null
+  expert?: IndustryExpert | null
 }
 
-export default function IndustryLayout({ children, expert }: IndustryLayoutProps) {
+export default function IndustryLayout({ children, expert = null }: IndustryLayoutProps) {
   const router = useRouter()
 
   const handleLogout = () => {
@@ -34,10 +36,12 @@ export default function IndustryLayout({ children, expert }: IndustryLayoutProps
 
   const navItems = [
     { name: "Dashboard", href: "/dashboard/industry", icon: LayoutDashboard },
-    { name: "Post Challenge", href: "/dashboard/industry/challenges/create", icon: Plus },
-    { name: "My Posts", href: "/dashboard/industry/posts", icon: Briefcase },
+    { name: "Job Postings", href: "/dashboard/industry/jobs", icon: Briefcase },
+    { name: "Tests", href: "/dashboard/industry/tests", icon: FileText },
     { name: "Skill Validations", href: "/dashboard/industry/validations", icon: CheckCircle2 },
     { name: "Candidates", href: "/dashboard/industry/candidates", icon: Users },
+    { name: "Branding", href: "/dashboard/industry/branding", icon: Building2 },
+    { name: "Events", href: "/dashboard/industry/events", icon: Calendar },
     { name: "Messages", href: "/dashboard/industry/messages", icon: MessageSquare },
     { name: "Settings", href: "/dashboard/industry/settings", icon: Settings },
   ]
